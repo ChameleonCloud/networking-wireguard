@@ -2,7 +2,20 @@
 Repo to integrate wireguard tunnels as a Neutron ML2 Driver
 
 
+## Devstack Usage
 
+Include this in your devstack local.conf file:
+
+```
+[[local|localrc]]
+enable_plugin <NAME> <GITURL> [GITREF]
+```
+
+
+
+
+
+## Development info
 
 plugin.sh contract
 
