@@ -1,5 +1,3 @@
 # settings file for networking_wireguard
 define_plugin networking-wireguard
-plugin_requires networking-wireguard neutron
-
 enable_service networking_wireguard

@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # plugin.sh - DevStack plugin.sh dispatch script template
 
+# Save trace setting
+XTRACE=$(set +o | grep xtrace)
+set +o xtrace
+
 echo_summary "networking-wireguard devstack plugin.sh called: $1/$2"
 
 # Set Defaults
-NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/NETWORKING_WIREGUARD_DIR}
+NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/networking_wireguard}
 
 # Functions
 function install_networking_wireguard {
