@@ -1,39 +1,24 @@
-# plugin.sh - DevStack plugin.sh dispatch script template
-
-function install_template {
-    ...
-}
-
-function init_template {
-    ...
-}
-
-function configure_template {
-    ...
-}
+# plugin.sh - DevStack plugin.sh dispatch script
 
 # check for service enabled
-if is_service_enabled template; then
+if is_service_enabled networking_wireguard; then
 
     if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
         # Set up system services
-        echo_summary "Configuring system services Template"
-        install_package cowsay
+        echo_summary "Configuring plugin networking_wireguard"
+        install_package wireguard
 
     elif [[ "$1" == "stack" && "$2" == "install" ]]; then
         # Perform installation of service source
-        echo_summary "Installing Template"
-        install_template
+        echo_summary "Installing plugin networking_wireguard"
 
     elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
         # Configure after the other layer 1 and 2 services have been configured
-        echo_summary "Configuring Template"
-        configure_template
+        echo_summary "Configuring plugin networking_wireguard"
 
     elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
         # Initialize and start the template service
-        echo_summary "Initializing Template"
-        init_template
+        echo_summary "Initializing plugin networking_wireguard"
     fi
 
     if [[ "$1" == "unstack" ]]; then
