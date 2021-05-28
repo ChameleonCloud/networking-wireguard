@@ -8,7 +8,7 @@ set +o xtrace
 echo_summary "networking-wireguard devstack plugin.sh called: $1/$2"
 
 # Set Defaults
-NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/networking_wireguard}
+NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/networking-wireguard}
 
 # Functions
 function install_networking_wireguard {
@@ -31,17 +31,18 @@ if is_service_enabled networking_wireguard; then
 
     if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
         # Set up system services
-        echo_summary "installing dependenceis for networking_wireguard"
+        echo_summary "installing dependenceies for networking_wireguard"
         install_package wireguard
 
     elif [[ "$1" == "stack" && "$2" == "install" ]]; then
         # Perform installation of service source
         echo_summary "Installing plugin networking_wireguard ML2"
-        install_networking_baremetal
+        install_networking_wireguard
 
     elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
         # Configure after the other layer 1 and 2 services have been configured
         echo_summary "Configuring plugin networking_wireguard"
+        configure_networking_wireguard
 
     elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
         # Initialize and start the template service
