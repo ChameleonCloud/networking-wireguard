@@ -1,16 +1,39 @@
-# plugin.sh - DevStack plugin.sh dispatch script
+#!/usr/bin/env bash
+# plugin.sh - DevStack plugin.sh dispatch script template
+
+echo_summary "networking-wireguard devstack plugin.sh called: $1/$2"
+
+# Set Defaults
+NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/NETWORKING_WIREGUARD_DIR}
+
+# Functions
+function install_networking_wireguard {
+    setup_develop $NETWORKING_WIREGUARD_DIR
+}
+
+function configure_networking_wireguard {
+    if [[ -z "$Q_ML2_PLUGIN_MECHANISM_DRIVERS" ]]; then
+        Q_ML2_PLUGIN_MECHANISM_DRIVERS='wireguard'
+    else
+        if [[ ! $Q_ML2_PLUGIN_MECHANISM_DRIVERS =~ $(echo '\<wireguard\>') ]]; then
+            Q_ML2_PLUGIN_MECHANISM_DRIVERS+=',wireguard'
+        fi
+    fi
+    populate_ml2_config /$Q_PLUGIN_CONF_FILE ml2 mechanism_drivers=$Q_ML2_PLUGIN_MECHANISM_DRIVERS
+}
 
 # check for service enabled
 if is_service_enabled networking_wireguard; then
 
     if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
         # Set up system services
-        echo_summary "Configuring plugin networking_wireguard"
+        echo_summary "installing dependenceis for networking_wireguard"
         install_package wireguard
 
     elif [[ "$1" == "stack" && "$2" == "install" ]]; then
         # Perform installation of service source
-        echo_summary "Installing plugin networking_wireguard"
+        echo_summary "Installing plugin networking_wireguard ML2"
+        install_networking_baremetal
 
     elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
         # Configure after the other layer 1 and 2 services have been configured
