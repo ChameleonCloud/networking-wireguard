@@ -12,7 +12,7 @@ NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/networking-wireguard}
 
 # Functions
 function install_networking_wireguard {
-    setup_package $NETWORKING_WIREGUARD_DIR
+    setup_develop $NETWORKING_WIREGUARD_DIR
 }
 
 function configure_networking_wireguard {
