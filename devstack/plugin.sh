@@ -2,13 +2,17 @@
 # plugin.sh - DevStack plugin.sh dispatch script template
 
 # Save trace setting
-XTRACE=$(set +o | grep xtrace)
+_XTRACE_NETWORKING_WG=$(set +o | grep xtrace)
 set +o xtrace
 
 echo_summary "networking-wireguard devstack plugin.sh called: $1/$2"
 
 # Set Defaults
 NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/networking-wireguard}
+
+# Import utility functions
+# source $TOP_DIR/functions
+# source $TOP_DIR/lib/neutron
 
 # Functions
 function install_networking_wireguard {
@@ -23,15 +27,22 @@ function configure_networking_wireguard {
             Q_ML2_PLUGIN_MECHANISM_DRIVERS+=',wireguard'
         fi
     fi
-    populate_ml2_config /$Q_PLUGIN_CONF_FILE ml2 mechanism_drivers=$Q_ML2_PLUGIN_MECHANISM_DRIVERS
+
+    iniset $NEUTRON_CORE_PLUGIN_CONF ml2 mechanism_drivers $Q_ML2_PLUGIN_MECHANISM_DRIVERS
+    # populate_ml2_config /$Q_PLUGIN_CONF_FILE ml2 mechanism_drivers=$Q_ML2_PLUGIN_MECHANISM_DRIVERS
 }
+
+
+# Restore xtrace
+$_XTRACE_NETWORKING_WG
+
 
 # check for service enabled
 if is_service_enabled networking_wireguard; then
 
     if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
         # Set up system services
-        echo_summary "installing dependenceies for networking_wireguard"
+        echo_summary "installing dependencies for networking_wireguard"
         install_package wireguard
 
     elif [[ "$1" == "stack" && "$2" == "install" ]]; then
