@@ -8,7 +8,7 @@ Include this in your devstack local.conf file:
 
 ```
 [[local|localrc]]
-enable_plugin <NAME> <GITURL> [GITREF]
+enable_plugin networking-wireguard https://github.com/ChameleonCloud/networking-wireguard.git main
 ```
 
 
