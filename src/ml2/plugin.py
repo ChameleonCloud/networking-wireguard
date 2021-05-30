@@ -1,5 +1,4 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
-from neutron_lib.plugins.directory import add_plugin
 from neutron_lib.plugins.ml2 import api
 from oslo_log import log
 
