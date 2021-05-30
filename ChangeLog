@@ -1,0 +1,17 @@
+CHANGES
+=======
+
+* another try at compilation
+* update local.conf
+* try to make setup work
+* try another way
+* generate setup.py to keep openstack happy
+* fix typos
+* add template for folder structure
+* turn into python package
+* add scaffold
+* Update README.md
+* Update README.md
+* initial commit
+* initial commit
+* Initial commit
