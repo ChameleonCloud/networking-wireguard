@@ -1,0 +1,2 @@
+wireguard [platform:dpkg]
+wireguard-tools [platform:rpm]
