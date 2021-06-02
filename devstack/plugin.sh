@@ -16,7 +16,7 @@ NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/networking-wireguard}
 
 # Functions
 function install_networking_wireguard {
-    setup_develop $NETWORKING_WIREGUARD_DIR
+    setup_develop -bindep $NETWORKING_WIREGUARD_DIR
 }
 
 function configure_networking_wireguard {
@@ -42,8 +42,7 @@ if is_service_enabled networking_wireguard; then
 
     if [[ "$1" == "stack" && "$2" == "pre-install" ]]; then
         # Set up system services
-        echo_summary "installing dependencies for networking_wireguard"
-        install_package wireguard
+        :
 
     elif [[ "$1" == "stack" && "$2" == "install" ]]; then
         # Perform installation of service source
