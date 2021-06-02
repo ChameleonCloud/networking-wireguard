@@ -9,5 +9,14 @@ class WireguardMechanismDriver(api.MechanismDriver):
     """First class note."""
 
     def initialize(self):
-        LOG.debug("Initializing Wireguard ML2 Driver")
+        LOG.debug("Initializing Wireguard ML2 Driver. New!")
         super().initialize()
+
+    def create_port_precommit(self, context):
+        LOG.debug("Entered Create Port")
+
+    def update_port_precommit(self, context):
+        LOG.debug("Entered Update Port")
+
+    def delete_port_precommit(self, context):
+        LOG.debug("Entered Delete Port")
