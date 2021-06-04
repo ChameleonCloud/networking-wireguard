@@ -11,14 +11,14 @@ source "$top_dir"/openrc
 
 # This script exits on an error so that errors don't compound and you see
 # only the first error that occurred.
-set -o errexit
+# set -o errexit
 
 # Print the commands being run so that we can see the command that triggers
 # an error.  It is also useful for following as the install occurs.
 set -o xtrace
 
 # send neutron logs to stdout
-journalctl --output cat -f -u devstack@q-svc | grep "src.ml2.driver" &
+journalctl --output cat -f -u devstack@q-svc &
 log_pid=$!
 
 port_name=testPort
