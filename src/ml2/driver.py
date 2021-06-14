@@ -51,10 +51,13 @@ class WireguardMechanismDriver(MechanismDriver):
         subprocess.run(["sudo", "ip", "netns", "add", netns_name])
 
         wg_if_name = f"tun-{network_id[0:8]}"
-        # Create wireguard interface
+        # Create wireguard interface in root namespace
         subprocess.run(
             ["sudo", "ip", "link", "add", "dev", wg_if_name, "type", "wireguard"]
         )
+
+        # move interface into namespace
+        subprocess.run(["sudo", "ip", "link", "set", wg_if_name, "netns", netns_name])
 
     def create_port_precommit(self, context: PortContext):
         port = context.current
