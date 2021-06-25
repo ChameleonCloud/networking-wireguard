@@ -7,7 +7,7 @@ echo "**************************************************"
 # Keep track of the current DevStack directory.
 top_dir="/opt/stack/devstack"
 # shellcheck disable=SC1091
-source "$top_dir"/openrc
+source "$top_dir"/openrc admin
 
 # This script exits on an error so that errors don't compound and you see
 # only the first error that occurred.
@@ -18,19 +18,20 @@ source "$top_dir"/openrc
 set -o xtrace
 
 # send neutron logs to stdout
-journalctl --output cat -f -u devstack@q-svc &
-log_pid=$!
+# journalctl --output cat -f -u devstack@q-svc &
+# log_pid=$!
 
 port_name=testPort
 port_id=$(openstack port create -f value -c id \
     --network private \
     "$port_name")
 
+sleep 2
+
 openstack port delete "${port_id}"
 
-sleep 5
 #kill logs
-kill $log_pid
+# kill $log_pid
 
 
 set +o xtrace
