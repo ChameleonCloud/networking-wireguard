@@ -64,7 +64,7 @@ class WireguardMechanismDriver(MechanismDriver):
                 # Create wireguard interface in root namespace
                 privileged.create_interface(wg_if_name, 0, "wireguard")
             # Move interface into namespace
-            privileged.set_link_attribute(wg_if_name, 0, "netns", netns_name)
+            privileged.set_link_attribute(wg_if_name, 0, netns=netns_name)
 
         # # Create WireGuard object
         # privkey = self._genkey()
