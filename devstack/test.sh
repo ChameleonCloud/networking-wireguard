@@ -24,6 +24,7 @@ set -o xtrace
 port_name=testPort
 port_id=$(openstack port create -f value -c id \
     --network private \
+    --binding-profile wg_type=hub \
     "$port_name")
 
 sleep 2

@@ -28,7 +28,26 @@
 					"--config-file",
 					"/etc/neutron/plugins/ml2/ml2_conf.ini"
 				],
-				"console": "integratedTerminal"
+				"console": "integratedTerminal",
+				"preLaunchTask": "stop-q-svc",
+			}
+		]
+	},
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "stop-q-svc",
+				"type": "shell",
+				"command": "sudo systemctl stop devstack@q-svc",
+				"detail": "Ensure neutron-server is stopped",
+			},
+			{
+				"label": "run-wg-tests",
+				"type": "shell",
+				"command": "./devstack/test.sh",
+				"detail": "run devstack test script",
+				"group": "test"
 			}
 		]
 	},
