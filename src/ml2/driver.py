@@ -2,12 +2,8 @@
 import json
 import subprocess
 
-from neutron_lib.plugins.ml2.api import (
-    MechanismDriver,
-    NetworkContext,
-    PortContext,
-    SubnetContext,
-)
+from neutron_lib.plugins.ml2.api import (MechanismDriver, NetworkContext,
+                                         PortContext, SubnetContext)
 from oslo_log import log
 from pyroute2 import IPDB, WireGuard
 
@@ -16,6 +12,7 @@ LOG = log.getLogger(__name__)
 import neutron.privileged
 from neutron.agent.linux import ip_lib
 from neutron.privileged.agent.linux import ip_lib as privileged
+from neutron_lib.utils.file import replace_file
 
 
 class WireguardMechanismDriver(MechanismDriver):
@@ -70,14 +67,16 @@ class WireguardMechanismDriver(MechanismDriver):
             # Move interface into namespace
             ns_ip.add_device_to_namespace(root_if_dev)
 
-        # # Create WireGuard object
-        # privkey = self._genkey()
+        self.config_wg_if(wg_if_name)
+
+    def config_wg_if(self, wg_if_name):
+        # Create WireGuard object
+        privkey = self._genkey()
+        # TODO write file as root to /etc/neutron
+        # replace_file(f"/etc/neutron/{wg_if_name}/privkey", privkey)
+
         # wg = WireGuard()
-        # wg.set(
-        #     wg_if_name,
-        #     private_key=privkey,
-        #     listen_port=51820,
-        # )
+        # wg.set(wg_if_name, private_key=privkey, listen_port=51820),
 
     def create_port_precommit(self, context: PortContext):
         port = context.current
