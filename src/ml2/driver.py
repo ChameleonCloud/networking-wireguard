@@ -36,7 +36,7 @@ class WireguardMechanismDriver(MechanismDriver):
         pass
 
     def _create_wg_iface(self, port: dict):
-        """Create WireGuard interface in correct namespace
+        """Create WireGuard interface in correct namespace.
 
         1. Get tenant namespace (ensure q-l3 is enabled!)
         2. create ifname from namespace name
@@ -48,20 +48,38 @@ class WireguardMechanismDriver(MechanismDriver):
 
         # Create network namespace
         netns_name = f"qrouter-{network_id}"
-        subprocess.run(["sudo", "ip", "netns", "add", netns_name])
+        try:
+            subprocess.run(
+                ["sudo", "ip", "netns", "add", netns_name],
+                check=True,
+            )
+        except subprocess.CalledProcessError as ex:
+            # TODO handle existing NS
+            pass
 
-        wg_if_name = f"tun-{network_id[0:8]}"
+        # 10 chosen to keep ip link netns happy
+        wg_if_name = f"wg-{network_id[0:11]}"
         # Create wireguard interface in root namespace
-        subprocess.run(
-            ["sudo", "ip", "link", "add", "dev", wg_if_name, "type", "wireguard"]
-        )
+        try:
+            subprocess.run(
+                ["sudo", "ip", "link", "add", wg_if_name, "type", "wireguard"],
+                check=True,
+            )
+        except Exception as ex:
+            pass
 
         # move interface into namespace
-        subprocess.run(["sudo", "ip", "link", "set", wg_if_name, "netns", netns_name])
+        try:
+            subprocess.run(
+                ["sudo", "ip", "link", "set", "netns", netns_name, "dev", wg_if_name],
+                check=True,
+            )
+        except Exception as ex:
+            pass
 
     def create_port_precommit(self, context: PortContext):
         port = context.current
-        LOG.info(f"Entered port precommit with port_info {json.dumps(port)}")
+        # LOG.info(f"Entered port precommit with port_info {json.dumps(port)}")
 
         self._validate_channel(port)
 
@@ -72,5 +90,18 @@ class WireguardMechanismDriver(MechanismDriver):
 
     def delete_port_precommit(self, context: PortContext):
         LOG.debug("Entered Delete Port")
+        port = context.current
 
-        # subprocess.run(["sudo", "ip", "link", "del", "dev", "wg0", "type", "wireguard"])
+        port_name = port.get("name")
+
+        network_id = port.get("network_id")
+        netns_name = f"qrouter-{network_id}"
+        wg_if_name = f"wg-{network_id[0:11]}"
+
+        try:
+            subprocess.run(
+                ["sudo", "ip", "-n", netns_name, "link", "del", "dev", wg_if_name],
+                check=True,
+            )
+        except Exception as ex:
+            pass
