@@ -52,19 +52,23 @@ class WireguardMechanismDriver(MechanismDriver):
         network_id = port.get("network_id")
 
         # Create network namespace
+
+        ns_root = ip_lib.IPWrapper()
         netns_name = f"qrouter-{network_id}"
-        ip_lib.create_network_namespace(netns_name)
+        ns_ip = ip_lib.IPWrapper().ensure_namespace(netns_name)
 
         # 10 chosen to keep ip link netns happy
         wg_if_name = f"wg-{network_id[0:11]}"
+        root_if_dev = ns_root.device(wg_if_name)
+        ns_if_dev = ns_root.device(wg_if_name)
 
         # Check if iface exists in namespace already
-        if not privileged.interface_exists(wg_if_name, netns_name):
-            if not privileged.interface_exists(wg_if_name, 0):
+        if not ns_if_dev.exists():
+            if not root_if_dev.exists():
                 # Create wireguard interface in root namespace
                 privileged.create_interface(wg_if_name, 0, "wireguard")
             # Move interface into namespace
-            privileged.set_link_attribute(wg_if_name, 0, netns=netns_name)
+            ns_ip.add_device_to_namespace(root_if_dev)
 
         # # Create WireGuard object
         # privkey = self._genkey()
@@ -96,11 +100,4 @@ class WireguardMechanismDriver(MechanismDriver):
         netns_name = f"qrouter-{network_id}"
         wg_if_name = f"wg-{network_id[0:11]}"
 
-        try:
-            subprocess.run(
-                ["sudo", "ip", "-n", netns_name, "link", "del", "dev", wg_if_name],
-                check=True,
-                stdout=subprocess.PIPE,
-            )
-        except Exception as ex:
-            pass
+        privileged.delete_interface(wg_if_name, netns_name)
