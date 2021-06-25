@@ -13,14 +13,19 @@ from pyroute2 import IPDB, WireGuard
 
 LOG = log.getLogger(__name__)
 
+import neutron.privileged
+from neutron.agent.linux import ip_lib
+from neutron.privileged.agent.linux import ip_lib as privileged
+
 
 class WireguardMechanismDriver(MechanismDriver):
     """First class note."""
 
     wg_bin = "wg"
 
-    def _genkey(self):
-        subprocess.run([self.wg_bin, "genkey"])
+    def _genkey(self) -> str:
+        result = subprocess.run([self.wg_bin, "genkey"], stdout=subprocess.PIPE)
+        return result.stdout
 
     def initialize(self):
         LOG.debug("Initializing Wireguard ML2 Driver. New!")
@@ -41,41 +46,34 @@ class WireguardMechanismDriver(MechanismDriver):
         1. Get tenant namespace (ensure q-l3 is enabled!)
         2. create ifname from namespace name
         3. ensure interface doesn't already exist
-        4. Create the stuff
+        4. generate public and private keys
         """
 
         network_id = port.get("network_id")
 
         # Create network namespace
         netns_name = f"qrouter-{network_id}"
-        try:
-            subprocess.run(
-                ["sudo", "ip", "netns", "add", netns_name],
-                check=True,
-            )
-        except subprocess.CalledProcessError as ex:
-            # TODO handle existing NS
-            pass
+        ip_lib.create_network_namespace(netns_name)
 
         # 10 chosen to keep ip link netns happy
         wg_if_name = f"wg-{network_id[0:11]}"
-        # Create wireguard interface in root namespace
-        try:
-            subprocess.run(
-                ["sudo", "ip", "link", "add", wg_if_name, "type", "wireguard"],
-                check=True,
-            )
-        except Exception as ex:
-            pass
 
-        # move interface into namespace
-        try:
-            subprocess.run(
-                ["sudo", "ip", "link", "set", "netns", netns_name, "dev", wg_if_name],
-                check=True,
-            )
-        except Exception as ex:
-            pass
+        # Check if iface exists in namespace already
+        if not privileged.interface_exists(wg_if_name, netns_name):
+            if not privileged.interface_exists(wg_if_name, 0):
+                # Create wireguard interface in root namespace
+                privileged.create_interface(wg_if_name, 0, "wireguard")
+            # Move interface into namespace
+            privileged.set_link_attribute(wg_if_name, 0, "netns", netns_name)
+
+        # # Create WireGuard object
+        # privkey = self._genkey()
+        # wg = WireGuard()
+        # wg.set(
+        #     wg_if_name,
+        #     private_key=privkey,
+        #     listen_port=51820,
+        # )
 
     def create_port_precommit(self, context: PortContext):
         port = context.current
@@ -102,6 +100,7 @@ class WireguardMechanismDriver(MechanismDriver):
             subprocess.run(
                 ["sudo", "ip", "-n", netns_name, "link", "del", "dev", wg_if_name],
                 check=True,
+                stdout=subprocess.PIPE,
             )
         except Exception as ex:
             pass
