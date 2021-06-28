@@ -22,6 +22,13 @@ class WireguardMechanismDriver(MechanismDriver):
     #     """
     #     vif_details = context.current.get("binding:profile")
 
+    def get_vif_details(self, port):
+        """Safe getter for vif details"""
+        if isinstance(port, Dict):
+            return port.get("binding:profile")
+        else:
+            return {}
+
     def initialize(self):
         """Run when plugin loads."""
         super().initialize()
@@ -29,14 +36,11 @@ class WireguardMechanismDriver(MechanismDriver):
     def create_port_precommit(self, context: PortContext):
         """Run inside the db transaction when creating port."""
         port = context.current
-        if isinstance(port, Dict):
-            vif_details = port.get("binding:profile")
-        else:
-            return
+        vif_details = self.get_vif_details(port)
         try:
             wg_port = WireguardPort(vif_details)
         except TypeError:
-            LOG.debug("not a dict")
+            LOG.debug("Not a wireguard port!")
             return
 
         network_id = port.get("network_id")
@@ -48,4 +52,13 @@ class WireguardMechanismDriver(MechanismDriver):
 
     def delete_port_precommit(self, context: PortContext):
         """Run inside the db transaction when deleting port."""
-        pass
+        port = context.current
+        vif_details = self.get_vif_details(port)
+        try:
+            wg_port = WireguardPort(vif_details)
+        except TypeError:
+            LOG.debug("Not a wireguard port!")
+            return
+
+        network_id = port.get("network_id")
+        wg_port.delete(network_id)

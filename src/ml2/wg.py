@@ -81,6 +81,36 @@ class WireguardPort(object):
         self._gen_config()
         self._apply_config()
 
+    def delete(self, network_id):
+        """Delete wg port from network namespace.
+
+        This runs in two steps, to catch the case where we create a port
+        but fail to move it.
+        """
+        # ip_lib objects to represent netns
+        netns_name = f"qrouter-{network_id}"
+        wg_if_name = f"wg-{network_id}"[0:DEVICE_NAME_MAX_LEN]
+
+        ns_root = ip_lib.IPWrapper()
+        ns_root_dev = ns_root.device(wg_if_name)
+        try:
+            ns_root_dev.link.delete()
+        except privileged.NetworkInterfaceNotFound:
+            pass
+
+        ns_tenant = ip_lib.IPWrapper().ensure_namespace(netns_name)
+        ns_tenant_dev = ns_tenant.device(wg_if_name)
+        try:
+            ns_tenant_dev.link.delete()
+        except privileged.NetworkInterfaceNotFound:
+            pass
+
+        self._del_config()
+
+    def _del_config(self):
+        """Delete saved wireguard config."""
+        pass
+
     def _gen_config(self):
         """Configure wireguard port parameters."""
         if self.type == self.WG_TYPE_HUB:
