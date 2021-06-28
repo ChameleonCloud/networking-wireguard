@@ -1,4 +1,6 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
+from typing import Dict
+
 from neutron_lib.plugins.ml2.api import MechanismDriver, PortContext
 from oslo_log import log
 
@@ -27,26 +29,18 @@ class WireguardMechanismDriver(MechanismDriver):
     def create_port_precommit(self, context: PortContext):
         """Run inside the db transaction when creating port."""
         port = context.current
-        vif_details = port.get("binding:profile")
+        if isinstance(port, Dict):
+            vif_details = port.get("binding:profile")
+        else:
+            return
         try:
             wg_port = WireguardPort(vif_details)
         except TypeError:
             LOG.debug("not a dict")
             return
 
-        if wg_port.type == "hub":
-            pass
-        elif wg_port.type == "spoke":
-            pass
-        else:
-            LOG.debug("invalid wg channel type")
-            return
-
-        # get wg port parameters
-        # create wg port config
-
-        # create wg port and move to NS
-        # apply to
+        network_id = port.get("network_id")
+        wg_port.create(network_id)
 
     def update_port_precommit(self, context: PortContext):
         """Run inside the db transaction when updating port."""
