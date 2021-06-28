@@ -7,6 +7,9 @@ from neutron.agent.linux import ip_lib
 from neutron.privileged.agent.linux import ip_lib as privileged
 from neutron_lib.api import validators
 from neutron_lib.constants import DEVICE_NAME_MAX_LEN
+from oslo_log import log
+
+LOG = log.getLogger(__name__)
 
 # from pyroute2 import IPDB, WireGuard
 
@@ -61,14 +64,19 @@ class WireguardPort(object):
         wg_if_name = f"wg-{network_id}"[0:DEVICE_NAME_MAX_LEN]
 
         ns_root_dev = ns_root.device(wg_if_name)
-        ns_tenant_dev = ns_root.device(wg_if_name)
+        ns_root_dev.kind = "wireguard"
+
+        ns_tenant_dev = ns_tenant.device(wg_if_name)
 
         if not ns_tenant_dev.exists():
-            if not ns_root_dev.exists():
-                # Create wireguard interface in root namespace
-                privileged.create_interface(wg_if_name, ns_root, "wireguard")
-            # Move interface into namespace
-            ns_tenant.add_device_to_namespace(ns_root_dev)
+            try:
+                ns_root_dev.link.create()
+            except privileged.InterfaceAlreadyExists:
+                pass
+            finally:
+                ns_root_dev.link.set_netns(ns_tenant.namespace)
+        else:
+            LOG.debug("Tenant device already exists!")
 
         self._gen_config()
         self._apply_config()
