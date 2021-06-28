@@ -1,36 +1,24 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
-
-from typing import Dict
-
 from neutron_lib.plugins.ml2.api import MechanismDriver, PortContext
 from oslo_log import log
 
-# from . import utils
+from .wg import WireguardPort
 
 LOG = log.getLogger(__name__)
 
 
 class WireguardMechanismDriver(MechanismDriver):
-    """First class note."""
+    """Management of wireguard interfaces corresponding to neutron ports."""
 
-    def _is_wg_port(self, context: PortContext) -> bool:
-        """Decide if this plugin should act.
+    # def _is_wg_port(self, context: PortContext) -> bool:
+    #     """Decide if this plugin should act.
 
-        Neutron plugins have their methods run on every relevant action.
-        We need to add a guard to prevent running when we shouldn't.
-        This uses the information passed in vif_details to decide if it's a
-        wireguard mapped port.
-        """
-        wg_info = context.current.get("binding:profile")
-
-        LOG.debug(wg_info)
-
-        # Change to vif_details once test harness in place
-        # wg_info: dict = port.get("binding").get("profile")
-        if wg_info.get("wg_type"):
-            return True
-        else:
-            return False
+    #     Neutron plugins have their methods run on every relevant action.
+    #     We need to add a guard to prevent running when we shouldn't.
+    #     This uses the information passed in vif_details to decide if it's a
+    #     wireguard mapped port.
+    #     """
+    #     vif_details = context.current.get("binding:profile")
 
     def initialize(self):
         """Run when plugin loads."""
@@ -38,19 +26,32 @@ class WireguardMechanismDriver(MechanismDriver):
 
     def create_port_precommit(self, context: PortContext):
         """Run inside the db transaction when creating port."""
-        if not self._is_wg_port(context):
+        port = context.current
+        vif_details = port.get("binding:profile")
+        try:
+            wg_port = WireguardPort(vif_details)
+        except TypeError:
+            LOG.debug("not a dict")
             return
 
-        LOG.debug("Entered port create for wg iface")
+        if wg_port.type == "hub":
+            pass
+        elif wg_port.type == "spoke":
+            pass
+        else:
+            LOG.debug("invalid wg channel type")
+            return
+
+        # get wg port parameters
+        # create wg port config
+
+        # create wg port and move to NS
+        # apply to
 
     def update_port_precommit(self, context: PortContext):
         """Run inside the db transaction when updating port."""
-        if not self._is_wg_port(context):
-            return
+        pass
 
     def delete_port_precommit(self, context: PortContext):
         """Run inside the db transaction when deleting port."""
-        if not self._is_wg_port(context):
-            return
-
-        LOG.debug("Entered port delete for wg iface")
+        pass
