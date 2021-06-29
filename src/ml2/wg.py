@@ -1,6 +1,6 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
 
-# import subprocess
+import subprocess
 from typing import Dict
 
 from neutron.agent.linux import ip_lib
@@ -12,8 +12,6 @@ from oslo_log import log
 LOG = log.getLogger(__name__)
 
 # from pyroute2 import IPDB, WireGuard
-
-wg_bin = "wg"
 
 
 class WireguardPort(object):
@@ -107,19 +105,44 @@ class WireguardPort(object):
 
         self._del_config()
 
-    def _del_config(self):
-        """Delete saved wireguard config."""
-        pass
-
     def _gen_config(self):
         """Configure wireguard port parameters."""
         if self.type == self.WG_TYPE_HUB:
-            pass
+            privkey, pubkey = self.gen_keys()
+
+        if self.type == self.WG_TYPE_SPOKE:
+            privkey = None
+            pubkey = self.pubkey
+
+        # save privkey and pubkey files
 
     def _apply_config(self):
         """Configure wireguard port parameters."""
         if self.type == self.WG_TYPE_HUB:
             pass
+
+    def _del_config(self):
+        """Delete saved wireguard config."""
+        pass
+
+    def gen_keys(self):
+        """
+        Generate a WireGuard private & public key.
+
+        Requires that the 'wg' command is available on PATH
+        Returns (private_key, public_key), both strings
+        """
+        privkey = (
+            subprocess.check_output("wg genkey", shell=True)
+            .decode("utf-8")
+            .strip()
+        )
+        pubkey = (
+            subprocess.check_output("wg pubkey", shell=True, input=privkey)
+            .decode("utf-8")
+            .strip()
+        )
+        return (privkey, pubkey)
 
 
 # def _genkey(self) -> str:
