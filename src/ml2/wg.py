@@ -1,7 +1,9 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
 
+import os
 import subprocess
 import sys
+from shutil import rmtree
 from typing import Dict
 
 from neutron.agent.linux import ip_lib
@@ -29,6 +31,7 @@ class WireguardPort(object):
 
     WG_CONF = cfg.CONF.wireguard
 
+    WG_CONF_ROOT = "/etc/neutron/plugins/wireguard/"
     WG_HOST_IP = WG_CONF.get("WG_HUB_IP")
 
     def __init__(self, vif_details: Dict) -> None:
@@ -90,6 +93,24 @@ class WireguardPort(object):
             # privkey = "GCP7ccH/NkUZggxTff+7IvTuIFgp9HLfA+uVWoSFZmc="
             privkey, pubkey = self.gen_keys()
 
+            WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
+            os.makedirs(WG_DEV_CONF_PATH, exist_ok=True)
+
+            # File is writable, created only if not existing
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            # owner read/write only
+            mode = 0o600
+            privkey_path = os.path.join(WG_DEV_CONF_PATH, "privkey")
+            privkey_fd = os.open(privkey_path, flags, mode)
+            with open(privkey_fd, "w") as f:
+                f.write(privkey)
+
+            pubkey_fd = os.open(
+                os.path.join(WG_DEV_CONF_PATH, "pubkey"), flags, mode
+            )
+            with open(pubkey_fd, "w") as f:
+                f.write(pubkey)
+
             try:
                 port = utils.find_free_port(self.WG_HOST_IP)
                 # hub.set(wg_if_name, private_key=privkey, listen_port=port)
@@ -101,6 +122,8 @@ class WireguardPort(object):
                         wg_if_name,
                         "listen-port",
                         port,
+                        "private-key",
+                        privkey_path,
                     ],
                     privsep_exec=True,
                 )
@@ -141,16 +164,11 @@ class WireguardPort(object):
         except privileged.NetworkInterfaceNotFound:
             pass
 
-        self._del_config()
-
-    def _apply_config(self):
-        """Configure wireguard port parameters."""
-        if self.type == consts.WG_TYPE_HUB:
-            pass
-
-    def _del_config(self):
-        """Delete saved wireguard config."""
-        pass
+        WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
+        try:
+            rmtree(WG_DEV_CONF_PATH)
+        except Exception:
+            raise
 
     def gen_keys(self):
         """
@@ -170,13 +188,3 @@ class WireguardPort(object):
             .strip()
         )
         return (privkey, pubkey)
-
-
-# def config_wg_if(self, wg_if_name):
-#     # Create WireGuard object
-#     privkey = self._genkey()
-#     # TODO write file as root to /etc/neutron
-#     # replace_file(f"/etc/neutron/{wg_if_name}/privkey", privkey)
-
-#     # wg = WireGuard()
-#     # wg.set(wg_if_name, private_key=privkey, listen_port=51820),
