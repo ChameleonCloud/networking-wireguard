@@ -8,6 +8,7 @@ from neutron.privileged.agent.linux import ip_lib as privileged
 from neutron_lib.api import validators
 from neutron_lib.constants import DEVICE_NAME_MAX_LEN
 from oslo_log import log
+from wireguard import Peer, Server
 
 LOG = log.getLogger(__name__)
 
