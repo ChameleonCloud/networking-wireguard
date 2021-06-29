@@ -16,8 +16,6 @@ from . import utils
 
 LOG = log.getLogger(__name__)
 
-from pyroute2 import IPDB, WireGuard
-
 
 class WireguardPort(object):
     """Define object to represent wireguard port."""
@@ -89,12 +87,13 @@ class WireguardPort(object):
             # privkey, pubkey = utils.gen_keys()
 
             # ERROR, TODO
-            privkey = "GCP7ccH/NkUZggxTff+7IvTuIFgp9HLfA+uVWoSFZmc="
-            hub = WireGuard()
+            # privkey = "GCP7ccH/NkUZggxTff+7IvTuIFgp9HLfA+uVWoSFZmc="
+            privkey, pubkey = self.gen_keys()
 
             try:
                 port = utils.find_free_port(self.WG_HOST_IP)
                 # hub.set(wg_if_name, private_key=privkey, listen_port=port)
+                ns_tenant_dev.addr.add(self.WG_HOST_IP)
                 ns_tenant.netns.execute(
                     [
                         "wg",
@@ -153,24 +152,24 @@ class WireguardPort(object):
         """Delete saved wireguard config."""
         pass
 
-    # def gen_keys(self):
-    #     """
-    #     Generate a WireGuard private & public key.
+    def gen_keys(self):
+        """
+        Generate a WireGuard private & public key.
 
-    #     Requires that the 'wg' command is available on PATH
-    #     Returns (private_key, public_key), both strings
-    #     """
-    #     privkey = (
-    #         subprocess.check_output("wg genkey", shell=True)
-    #         .decode("utf-8")
-    #         .strip()
-    #     )
-    #     pubkey = (
-    #         subprocess.check_output("wg pubkey", shell=True, input=privkey)
-    #         .decode("utf-8")
-    #         .strip()
-    #     )
-    #     return (privkey, pubkey)
+        Requires that the 'wg' command is available on PATH
+        Returns (private_key, public_key), both strings
+        """
+        privkey = (
+            subprocess.check_output(["wg", "genkey"]).decode("utf-8").strip()
+        )
+        pubkey = (
+            subprocess.check_output(
+                ["wg", "pubkey"], input=privkey.encode("utf-8")
+            )
+            .decode("utf-8")
+            .strip()
+        )
+        return (privkey, pubkey)
 
 
 # def config_wg_if(self, wg_if_name):
