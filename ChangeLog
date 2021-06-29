@@ -1,6 +1,30 @@
 CHANGES
 =======
 
+* add temporary todolist
+* add test script to tasks
+* add vscode config for debugging
+* stub for saving wg config
+* properly use ipwrapper to reference devices
+* use priv to change netns
+* use neutron privilged to run action
+* properly delete interface from within namespace
+* use admin for openrc to allow tests
+* move wg iface to netns
+* create namespace and wg link from network name
+* add requirements
+* add design doc to readme
+* run WG commands
+* add debug logs to test script
+* call bindep to install package
+* fix typo in version specifier
+* add test script
+* add binary deps
+* set path again
+* fix typo
+* set entrypoint to match plugin name
+* add artifacts from PBR
+* fix pbr build
 * another try at compilation
 * update local.conf
 * try to make setup work
