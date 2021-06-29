@@ -94,7 +94,17 @@ class WireguardPort(object):
 
             try:
                 port = utils.find_free_port(self.WG_HOST_IP)
-                hub.set(wg_if_name, private_key=privkey, listen_port=port)
+                # hub.set(wg_if_name, private_key=privkey, listen_port=port)
+                ns_tenant.netns.execute(
+                    [
+                        "wg",
+                        "set",
+                        wg_if_name,
+                        "listen-port",
+                        port,
+                    ],
+                    privsep_exec=True,
+                )
             except IOError:
                 LOG.warn("Failed to bind port")
                 raise
