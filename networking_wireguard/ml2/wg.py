@@ -12,7 +12,13 @@ from neutron_lib.constants import DEVICE_NAME_MAX_LEN
 from oslo_config import cfg
 from oslo_log import log
 
-from networking_wireguard import constants
+from networking_wireguard.constants import (
+    WG_ENDPOINT_KEY,
+    WG_PUBKEY_KEY,
+    WG_TYPE_HUB,
+    WG_TYPE_KEY,
+    WG_TYPE_SPOKE,
+)
 from networking_wireguard.ml2 import utils
 
 LOG = log.getLogger(__name__)
@@ -29,19 +35,20 @@ class WireguardPort(object):
     cfg.CONF(sys.argv[1:])
 
     WG_CONF = cfg.CONF.wireguard
+    if isinstance(WG_CONF, Dict):
+        WG_HOST_IP = WG_CONF.get("WG_HUB_IP")
 
     WG_CONF_ROOT = "/etc/neutron/plugins/wireguard/"
-    WG_HOST_IP = WG_CONF.get("WG_HUB_IP")
 
     def __init__(self, vif_details: Dict) -> None:
         """Init values from vif_details dict."""
         if validators.validate_dict(vif_details):
             raise TypeError
-        self.type = vif_details.get(constants.WG_TYPE_KEY)
-        self.pubkey = vif_details.get(constants.WG_PUBKEY_KEY)
-        self.endpoint = vif_details.get(constants.WG_ENDPOINT_KEY)
+        self.type = vif_details.get(WG_TYPE_KEY)
+        self.pubkey = vif_details.get(WG_PUBKEY_KEY)
+        self.endpoint = vif_details.get(WG_ENDPOINT_KEY)
 
-        if self.type in [constants.WG_TYPE_HUB, constants.WG_TYPE_SPOKE]:
+        if self.type in [WG_TYPE_HUB, WG_TYPE_SPOKE]:
             pass
         else:
             raise TypeError
@@ -85,12 +92,12 @@ class WireguardPort(object):
         else:
             LOG.debug("Tenant device already exists!")
 
-        if self.type == constants.WG_TYPE_HUB:
+        if self.type == WG_TYPE_HUB:
             # privkey, pubkey = utils.gen_keys()
 
             # ERROR, TODO
             # privkey = "GCP7ccH/NkUZggxTff+7IvTuIFgp9HLfA+uVWoSFZmc="
-            privkey, pubkey = ml2.utils.gen_keys()
+            privkey, pubkey = utils.gen_keys()
 
             WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
             os.makedirs(WG_DEV_CONF_PATH, exist_ok=True)

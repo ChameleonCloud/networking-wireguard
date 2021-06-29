@@ -3,17 +3,25 @@
 import socket
 import subprocess
 from contextlib import closing
-from typing import Tuple
+from typing import Dict, Tuple
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives.serialization import (
-    Encoding,
-    NoEncryption,
-    PrivateFormat,
-    PublicFormat,
-)
+from networking_wireguard.constants import WG_HUB_PORT_RANGE
 
-from networking_wireguard import constants
+
+def get_vif_details(port) -> Dict:
+    """Safe getter for vif_details."""
+    if type(port) is Dict:
+        return port.get("binding:profile")
+    else:
+        return {}
+
+
+def get_network_id(port) -> str:
+    """Safe getter for network_id."""
+    if type(port) is Dict:
+        return port.get("network_id")
+    else:
+        return ""
 
 
 def gen_keys() -> Tuple[str, str]:
@@ -34,29 +42,7 @@ def gen_keys() -> Tuple[str, str]:
     return (privkey, pubkey)
 
 
-def gen_keys_crypto() -> Tuple[bytes, bytes]:
-    """Generate keypair for wireguard.
-
-    WARNING: I don't know if this is a sane thing to do.
-    """
-    privkey = Ed25519PrivateKey.generate()
-    serialized_privkey = privkey.private_bytes(
-        Encoding.PEM,
-        PrivateFormat.PKCS8,
-        NoEncryption(),
-    )
-
-    pubkey = privkey.public_key()
-
-    serialized_pubkey = pubkey.public_bytes(
-        Encoding.PEM,
-        PublicFormat.SubjectPublicKeyInfo,
-    )
-
-    return (serialized_privkey, serialized_pubkey)
-
-
-def find_free_port(ip_address, port_range=constants.WG_HUB_PORT_RANGE):
+def find_free_port(ip_address, port_range=WG_HUB_PORT_RANGE):
     """Get free port in range."""
     port = min(port_range)
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
