@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-from src.common import constants
+from networking_wireguard import constants
 
 
 def gen_keys() -> Tuple[str, str]:
