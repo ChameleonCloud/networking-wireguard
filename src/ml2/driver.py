@@ -4,7 +4,7 @@ from typing import Dict
 from neutron_lib.plugins.ml2.api import MechanismDriver, PortContext
 from oslo_log import log
 
-from .wg import WireguardPort
+from src.ml2.wg import WireguardPort
 
 LOG = log.getLogger(__name__)
 

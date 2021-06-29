@@ -1,7 +1,6 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
 
 import os
-import subprocess
 import sys
 from shutil import rmtree
 from typing import Dict
@@ -13,8 +12,8 @@ from neutron_lib.constants import DEVICE_NAME_MAX_LEN
 from oslo_config import cfg
 from oslo_log import log
 
-from ..common import constants as consts
-from . import utils
+from src.common import constants as consts
+from src.ml2 import utils
 
 LOG = log.getLogger(__name__)
 
@@ -169,22 +168,3 @@ class WireguardPort(object):
             rmtree(WG_DEV_CONF_PATH)
         except Exception:
             raise
-
-    def gen_keys(self):
-        """
-        Generate a WireGuard private & public key.
-
-        Requires that the 'wg' command is available on PATH
-        Returns (private_key, public_key), both strings
-        """
-        privkey = (
-            subprocess.check_output(["wg", "genkey"]).decode("utf-8").strip()
-        )
-        pubkey = (
-            subprocess.check_output(
-                ["wg", "pubkey"], input=privkey.encode("utf-8")
-            )
-            .decode("utf-8")
-            .strip()
-        )
-        return (privkey, pubkey)

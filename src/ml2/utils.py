@@ -1,6 +1,7 @@
 """Collection of useful methods."""
 
 import socket
+import subprocess
 from contextlib import closing
 from typing import Tuple
 
@@ -12,10 +13,28 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-from ..common import constants
+from src.common import constants
 
 
-def gen_keys():
+def gen_keys() -> Tuple[str, str]:
+    """
+    Generate a WireGuard private & public key.
+
+    Requires that the 'wg' command is available on PATH
+    Returns (private_key, public_key), both strings
+    """
+    privkey = subprocess.check_output(["wg", "genkey"]).decode("utf-8").strip()
+    pubkey = (
+        subprocess.check_output(
+            ["wg", "pubkey"], input=privkey.encode("utf-8")
+        )
+        .decode("utf-8")
+        .strip()
+    )
+    return (privkey, pubkey)
+
+
+def gen_keys_crypto() -> Tuple[bytes, bytes]:
     """Generate keypair for wireguard.
 
     WARNING: I don't know if this is a sane thing to do.
