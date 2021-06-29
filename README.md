@@ -13,6 +13,27 @@ enable_plugin networking-wireguard https://github.com/ChameleonCloud/networking-
 
 
 
+## Sample local.conf for testing
+[[local|localrc]]
+ADMIN_PASSWORD=<password>
+DATABASE_PASSWORD=$ADMIN_PASSWORD
+RABBIT_PASSWORD=$ADMIN_PASSWORD
+SERVICE_PASSWORD=$ADMIN_PASSWORD
+
+HOST_IP=<IP for public interface>
+
+# minimal config for neutron dev
+disable_all_services
+enable_service keystone mysql rabbit
+enable_service q-svc q-l3 q-agt q-meta q-dhcp
+
+enable_plugin networking-wireguard https://github.com/ChameleonCloud/networking-wireguard.git main
+
+[[post-config|/$Q_PLUGIN_CONF_FILE]]
+
+[wireguard]
+WG_HUB_IP=$HOST_IP
+
 ## Design Goals
 
 ### ML2

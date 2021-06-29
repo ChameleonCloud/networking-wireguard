@@ -1,14 +1,17 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
 
 import subprocess
+import sys
 from typing import Dict
 
 from neutron.agent.linux import ip_lib
 from neutron.privileged.agent.linux import ip_lib as privileged
 from neutron_lib.api import validators
 from neutron_lib.constants import DEVICE_NAME_MAX_LEN
+from oslo_config import cfg
 from oslo_log import log
-from wireguard import Peer, Server
+
+# from wireguard import Peer, Server
 
 LOG = log.getLogger(__name__)
 
@@ -24,6 +27,17 @@ class WireguardPort(object):
     WG_TYPE_SPOKE = "spoke"
     WG_PUBKEY_KEY = "wg_pubkey"
     WG_ENDPOINT_KEY = "wg_endpoint"
+
+    cfg_grp = cfg.OptGroup("wireguard")
+    cfg_opts = [cfg.HostAddressOpt("WG_HUB_IP")]
+
+    cfg.CONF.register_group(cfg_grp)
+    cfg.CONF.register_opts(cfg_opts, group=cfg_grp)
+    cfg.CONF(sys.argv[1:])
+
+    WG_CONF = cfg.CONF.wireguard
+
+    WG_HOST_IP = WG_CONF.get("WG_HUB_IP")
 
     def __init__(self, vif_details: Dict) -> None:
         """Init values from vif_details dict."""
@@ -77,8 +91,8 @@ class WireguardPort(object):
         else:
             LOG.debug("Tenant device already exists!")
 
-        self._gen_config()
-        self._apply_config()
+        # self._gen_config()
+        # self._apply_config()
 
     def delete(self, network_id):
         """Delete wg port from network namespace.
@@ -106,14 +120,17 @@ class WireguardPort(object):
 
         self._del_config()
 
-    def _gen_config(self):
+    def configure(self, context):
         """Configure wireguard port parameters."""
-        if self.type == self.WG_TYPE_HUB:
-            privkey, pubkey = self.gen_keys()
+        # if self.type == self.WG_TYPE_HUB:
+        #     privkey, pubkey = self.gen_keys()
 
-        if self.type == self.WG_TYPE_SPOKE:
-            privkey = None
-            pubkey = self.pubkey
+        # if self.type == self.WG_TYPE_SPOKE:
+        #     privkey = None
+        #     pubkey = self.pubkey
+
+        network_info = context
+        # hub = Server()
 
         # save privkey and pubkey files
 
@@ -144,29 +161,6 @@ class WireguardPort(object):
             .strip()
         )
         return (privkey, pubkey)
-
-
-# def _genkey(self) -> str:
-#     result = subprocess.run([self.wg_bin, "genkey"], stdout=subprocess.PIPE)
-#     return result.stdout
-
-
-# def _create_wg_iface(self, port: dict):
-#     """Create WireGuard interface in correct namespace.
-
-#     1. Get tenant namespace (ensure q-l3 is enabled!)
-#     2. create ifname from namespace name
-#     3. ensure interface doesn't already exist
-#     4. generate public and private keys
-#     """
-
-#     network_id = port.get("network_id")
-
-#     # Create network namespace
-
-#     # 10 chosen to keep ip link netns happy
-
-#     # Check if iface exists in namespace already
 
 
 # def config_wg_if(self, wg_if_name):

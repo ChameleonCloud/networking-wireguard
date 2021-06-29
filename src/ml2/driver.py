@@ -23,7 +23,7 @@ class WireguardMechanismDriver(MechanismDriver):
     #     vif_details = context.current.get("binding:profile")
 
     def get_vif_details(self, port):
-        """Safe getter for vif details"""
+        """Safe getter for vif details."""
         if isinstance(port, Dict):
             return port.get("binding:profile")
         else:
@@ -45,6 +45,8 @@ class WireguardMechanismDriver(MechanismDriver):
 
         network_id = port.get("network_id")
         wg_port.create(network_id)
+
+        wg_port.configure(context)
 
     def update_port_precommit(self, context: PortContext):
         """Run inside the db transaction when updating port."""
