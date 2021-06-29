@@ -46,7 +46,7 @@ class WireguardMechanismDriver(MechanismDriver):
         network_id = port.get("network_id")
         wg_port.create(network_id)
 
-        wg_port.configure(context)
+        # wg_port.configure(context)
 
     def update_port_precommit(self, context: PortContext):
         """Run inside the db transaction when updating port."""

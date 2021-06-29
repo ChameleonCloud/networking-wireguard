@@ -11,22 +11,16 @@ from neutron_lib.constants import DEVICE_NAME_MAX_LEN
 from oslo_config import cfg
 from oslo_log import log
 
-# from wireguard import Peer, Server
+from ..common import constants as consts
+from . import utils
 
 LOG = log.getLogger(__name__)
 
-# from pyroute2 import IPDB, WireGuard
+from pyroute2 import IPDB, WireGuard
 
 
 class WireguardPort(object):
     """Define object to represent wireguard port."""
-
-    # Define constants used as keys in binding dict
-    WG_TYPE_KEY = "wg_type"
-    WG_TYPE_HUB = "hub"
-    WG_TYPE_SPOKE = "spoke"
-    WG_PUBKEY_KEY = "wg_pubkey"
-    WG_ENDPOINT_KEY = "wg_endpoint"
 
     cfg_grp = cfg.OptGroup("wireguard")
     cfg_opts = [cfg.HostAddressOpt("WG_HUB_IP")]
@@ -43,11 +37,11 @@ class WireguardPort(object):
         """Init values from vif_details dict."""
         if validators.validate_dict(vif_details):
             raise TypeError
-        self.type = vif_details.get(self.WG_TYPE_KEY)
-        self.pubkey = vif_details.get(self.WG_PUBKEY_KEY)
-        self.endpoint = vif_details.get(self.WG_ENDPOINT_KEY)
+        self.type = vif_details.get(consts.WG_TYPE_KEY)
+        self.pubkey = vif_details.get(consts.WG_PUBKEY_KEY)
+        self.endpoint = vif_details.get(consts.WG_ENDPOINT_KEY)
 
-        if self.type in [self.WG_TYPE_HUB, self.WG_TYPE_SPOKE]:
+        if self.type in [consts.WG_TYPE_HUB, consts.WG_TYPE_SPOKE]:
             pass
         else:
             raise TypeError
@@ -91,8 +85,28 @@ class WireguardPort(object):
         else:
             LOG.debug("Tenant device already exists!")
 
-        # self._gen_config()
-        # self._apply_config()
+        if self.type == consts.WG_TYPE_HUB:
+            # privkey, pubkey = utils.gen_keys()
+
+            # ERROR, TODO
+            privkey = "GCP7ccH/NkUZggxTff+7IvTuIFgp9HLfA+uVWoSFZmc="
+            hub = WireGuard()
+
+            try:
+                port = utils.find_free_port(self.WG_HOST_IP)
+                hub.set(wg_if_name, private_key=privkey, listen_port=port)
+            except IOError:
+                LOG.warn("Failed to bind port")
+                raise
+            except Exception as ex:
+                LOG.debug(ex)
+                raise
+
+        # if self.type == self.WG_TYPE_SPOKE:
+        #     privkey = None
+        #     pubkey = self.pubkey
+
+        # save privkey and pubkey files
 
     def delete(self, network_id):
         """Delete wg port from network namespace.
@@ -120,47 +134,33 @@ class WireguardPort(object):
 
         self._del_config()
 
-    def configure(self, context):
-        """Configure wireguard port parameters."""
-        # if self.type == self.WG_TYPE_HUB:
-        #     privkey, pubkey = self.gen_keys()
-
-        # if self.type == self.WG_TYPE_SPOKE:
-        #     privkey = None
-        #     pubkey = self.pubkey
-
-        network_info = context
-        # hub = Server()
-
-        # save privkey and pubkey files
-
     def _apply_config(self):
         """Configure wireguard port parameters."""
-        if self.type == self.WG_TYPE_HUB:
+        if self.type == consts.WG_TYPE_HUB:
             pass
 
     def _del_config(self):
         """Delete saved wireguard config."""
         pass
 
-    def gen_keys(self):
-        """
-        Generate a WireGuard private & public key.
+    # def gen_keys(self):
+    #     """
+    #     Generate a WireGuard private & public key.
 
-        Requires that the 'wg' command is available on PATH
-        Returns (private_key, public_key), both strings
-        """
-        privkey = (
-            subprocess.check_output("wg genkey", shell=True)
-            .decode("utf-8")
-            .strip()
-        )
-        pubkey = (
-            subprocess.check_output("wg pubkey", shell=True, input=privkey)
-            .decode("utf-8")
-            .strip()
-        )
-        return (privkey, pubkey)
+    #     Requires that the 'wg' command is available on PATH
+    #     Returns (private_key, public_key), both strings
+    #     """
+    #     privkey = (
+    #         subprocess.check_output("wg genkey", shell=True)
+    #         .decode("utf-8")
+    #         .strip()
+    #     )
+    #     pubkey = (
+    #         subprocess.check_output("wg pubkey", shell=True, input=privkey)
+    #         .decode("utf-8")
+    #         .strip()
+    #     )
+    #     return (privkey, pubkey)
 
 
 # def config_wg_if(self, wg_if_name):
