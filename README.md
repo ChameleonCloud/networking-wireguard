@@ -14,6 +14,8 @@ enable_plugin networking-wireguard https://github.com/ChameleonCloud/networking-
 
 
 ## Sample local.conf for testing
+
+```
 [[local|localrc]]
 ADMIN_PASSWORD=<password>
 DATABASE_PASSWORD=$ADMIN_PASSWORD
@@ -33,6 +35,7 @@ enable_plugin networking-wireguard https://github.com/ChameleonCloud/networking-
 
 [wireguard]
 WG_HUB_IP=$HOST_IP
+```
 
 ## Design Goals
 
