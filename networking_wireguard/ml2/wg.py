@@ -23,6 +23,18 @@ from networking_wireguard.ml2 import utils
 LOG = log.getLogger(__name__)
 
 
+class Peer(object):
+    def __init__(self, endpoint, pubkey) -> None:
+        self.endpoint = endpoint
+        self.pubkey = pubkey
+
+    def get_endpoint(self):
+        return self.endpoint
+
+    def get_pubkey(self):
+        return self.pubkey
+
+
 class WireguardPort(object):
     """Define object to represent wireguard port."""
 
@@ -38,13 +50,19 @@ class WireguardPort(object):
 
     WG_CONF_ROOT = "/etc/neutron/plugins/wireguard/"
 
+    PEER_LIST = []
+
     def __init__(self, vif_details: dict) -> None:
         """Init values from vif_details dict."""
         if validators.validate_dict(vif_details):
             raise TypeError
         self.type = vif_details.get(WG_TYPE_KEY)
-        self.pubkey = vif_details.get(WG_PUBKEY_KEY)
-        self.endpoint = vif_details.get(WG_ENDPOINT_KEY)
+        self.PEER_LIST.append(
+            Peer(
+                vif_details.get(WG_ENDPOINT_KEY),
+                vif_details.get(WG_PUBKEY_KEY),
+            )
+        )
 
         if self.type in [WG_TYPE_HUB, WG_TYPE_SPOKE]:
             pass
@@ -117,6 +135,22 @@ class WireguardPort(object):
                     ],
                     privsep_exec=True,
                 )
+
+                for peer in self.PEER_LIST:
+
+                    ns_tenant.netns.execute(
+                        [
+                            "wg",
+                            "set",
+                            wg_if_name,
+                            "peer",
+                            peer.get_pubkey(),
+                            "allowed-ips",
+                            peer.get_endpoint(),
+                        ],
+                        privsep_exec=True,
+                    )
+
             except IOError:
                 LOG.warn("Failed to bind port")
                 raise
