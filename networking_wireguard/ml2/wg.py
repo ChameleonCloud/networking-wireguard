@@ -81,8 +81,6 @@ class WireguardPort(object):
         6. Call steps to configure tunnel parameters
         """
 
-        self.save_peers(port)
-
         # ip_lib objects to represent netns
         netns_name = f"tun-{port.get('project_id')}"
         wg_if_name = f"wg-{port.get('id')}"[0:DEVICE_NAME_MAX_LEN]
@@ -114,6 +112,9 @@ class WireguardPort(object):
             except Exception:
                 privkey_path = None
 
+            # save peers to config file
+            self.save_peers(port)
+
             # Assign address to interface
             try:
                 ns_tenant_dev.addr.add(self.WG_HOST_IP)
@@ -140,6 +141,12 @@ class WireguardPort(object):
                 raise
             except Exception as ex:
                 LOG.debug(ex)
+
+            # # save info to VIF_DETAILS
+            # port["binding:vif_details"]["wg_pubkey"] = pubkey
+            # port["binding:vif_details"][
+            #     "wg_endpoint"
+            # ] = f"{self.WG_HOST_IP}:{port}"
 
             # Add Peer List
             for peer in self.PEER_LIST:
