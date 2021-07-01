@@ -54,7 +54,7 @@ class WireguardPort(object):
         # check that pubkey is valid
         # check that endpoint is ip address or hostname
 
-    def create(self, network_id):
+    def create(self, port):
         """Create wireguard interface and move to netns.
 
         This creates a wireguard interface in the root namespace
@@ -69,11 +69,11 @@ class WireguardPort(object):
         6. Call steps to configure tunnel parameters
         """
         # ip_lib objects to represent netns
-        netns_name = f"qrouter-{network_id}"
+        netns_name = f"tun-{port.get('project_id')}"
+        wg_if_name = f"wg-{port.get('id')}"[0:DEVICE_NAME_MAX_LEN]
+
         ns_root = ip_lib.IPWrapper()
         ns_tenant = ip_lib.IPWrapper().ensure_namespace(netns_name)
-
-        wg_if_name = f"wg-{network_id}"[0:DEVICE_NAME_MAX_LEN]
 
         ns_root_dev = ns_root.device(wg_if_name)
         ns_root_dev.kind = "wireguard"
@@ -91,10 +91,6 @@ class WireguardPort(object):
             LOG.debug("Tenant device already exists!")
 
         if self.type == WG_TYPE_HUB:
-            # privkey, pubkey = utils.gen_keys()
-
-            # ERROR, TODO
-            # privkey = "GCP7ccH/NkUZggxTff+7IvTuIFgp9HLfA+uVWoSFZmc="
             privkey, pubkey = utils.gen_keys()
 
             try:
@@ -131,7 +127,6 @@ class WireguardPort(object):
         WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
         os.makedirs(WG_DEV_CONF_PATH, exist_ok=True)
 
-        # File is writable, created only if not existing
         flags = os.O_WRONLY | os.O_CREAT
         # owner read/write only
         mode = 0o600
@@ -147,16 +142,17 @@ class WireguardPort(object):
             f.write(pubkey)
         return privkey_path
 
-    def delete(self, network_id):
+    def delete(self, port):
         """Delete wg port from network namespace.
 
         This runs in two steps, to catch the case where we create a port
         but fail to move it.
         """
-        # ip_lib objects to represent netns
-        netns_name = f"qrouter-{network_id}"
-        wg_if_name = f"wg-{network_id}"[0:DEVICE_NAME_MAX_LEN]
 
+        netns_name = f"tun-{port.get('project_id')}"
+        wg_if_name = f"wg-{port.get('id')}"[0:DEVICE_NAME_MAX_LEN]
+
+        # ip_lib objects to represent netns
         ns_root = ip_lib.IPWrapper()
         ns_root_dev = ns_root.device(wg_if_name)
         try:

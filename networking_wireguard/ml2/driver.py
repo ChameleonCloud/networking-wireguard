@@ -22,8 +22,7 @@ class WireguardMechanismDriver(MechanismDriver):
         vif_details = utils.get_vif_details(port)
         if WG_TYPE_KEY in vif_details:
             wg_port = wg.WireguardPort(vif_details)
-            network_id = utils.get_network_id(port)
-            wg_port.create(network_id)
+            wg_port.create(port)
 
     def update_port_precommit(self, context: PortContext):
         """Run inside the db transaction when updating port."""
@@ -41,5 +40,4 @@ class WireguardMechanismDriver(MechanismDriver):
         vif_details = utils.get_vif_details(port)
         if WG_TYPE_KEY in vif_details:
             wg_port = wg.WireguardPort(vif_details)
-            network_id = utils.get_network_id(port)
-            wg_port.delete(network_id)
+            wg_port.delete(port)
