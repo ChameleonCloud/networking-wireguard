@@ -111,18 +111,21 @@ class WireguardPort(object):
         if self.type == WG_TYPE_HUB:
             privkey, pubkey = utils.gen_keys()
 
+            # Create / Save private key
             try:
                 privkey_path = self.save_keys(wg_if_name, privkey, pubkey)
             except Exception:
                 privkey_path = None
 
+            # Assign address to interface
+            try:
+                ns_tenant_dev.addr.add(self.WG_HOST_IP)
+            except Exception:
+                pass
+
+            # Bind port
             try:
                 port = utils.find_free_port(self.WG_HOST_IP)
-
-                try:
-                    ns_tenant_dev.addr.add(self.WG_HOST_IP)
-                except Exception:
-                    pass
                 ns_tenant.netns.execute(
                     [
                         "wg",
@@ -135,27 +138,26 @@ class WireguardPort(object):
                     ],
                     privsep_exec=True,
                 )
-
-                for peer in self.PEER_LIST:
-
-                    ns_tenant.netns.execute(
-                        [
-                            "wg",
-                            "set",
-                            wg_if_name,
-                            "peer",
-                            peer.get_pubkey(),
-                            "allowed-ips",
-                            peer.get_endpoint(),
-                        ],
-                        privsep_exec=True,
-                    )
-
             except IOError:
                 LOG.warn("Failed to bind port")
                 raise
             except Exception as ex:
                 LOG.debug(ex)
+
+            # Add Peer List
+            for peer in self.PEER_LIST:
+                ns_tenant.netns.execute(
+                    [
+                        "wg",
+                        "set",
+                        wg_if_name,
+                        "peer",
+                        peer.get_pubkey(),
+                        "allowed-ips",
+                        peer.get_endpoint(),
+                    ],
+                    privsep_exec=True,
+                )
 
     def save_keys(self, wg_if_name, privkey, pubkey):
         WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
