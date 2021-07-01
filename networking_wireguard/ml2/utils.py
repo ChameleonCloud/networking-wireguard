@@ -3,14 +3,14 @@
 import socket
 import subprocess
 from contextlib import closing
-from typing import Dict, Tuple
+from typing import Tuple
 
 from networking_wireguard.constants import WG_HUB_PORT_RANGE
 
 
-def get_vif_details(port) -> Dict:
+def get_vif_details(port) -> dict:
     """Safe getter for vif_details."""
-    if type(port) is Dict:
+    if type(port) is dict:
         return port.get("binding:profile")
     else:
         return {}
@@ -18,7 +18,7 @@ def get_vif_details(port) -> Dict:
 
 def get_network_id(port) -> str:
     """Safe getter for network_id."""
-    if type(port) is Dict:
+    if type(port) is dict:
         return port.get("network_id")
     else:
         return ""

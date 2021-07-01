@@ -3,7 +3,6 @@
 import os
 import sys
 from shutil import rmtree
-from typing import Dict
 
 from neutron.agent.linux import ip_lib
 from neutron.privileged.agent.linux import ip_lib as privileged
@@ -35,12 +34,11 @@ class WireguardPort(object):
     cfg.CONF(sys.argv[1:])
 
     WG_CONF = cfg.CONF.wireguard
-    if isinstance(WG_CONF, Dict):
-        WG_HOST_IP = WG_CONF.get("WG_HUB_IP")
+    WG_HOST_IP = WG_CONF.get("WG_HUB_IP")
 
     WG_CONF_ROOT = "/etc/neutron/plugins/wireguard/"
 
-    def __init__(self, vif_details: Dict) -> None:
+    def __init__(self, vif_details: dict) -> None:
         """Init values from vif_details dict."""
         if validators.validate_dict(vif_details):
             raise TypeError
@@ -99,28 +97,18 @@ class WireguardPort(object):
             # privkey = "GCP7ccH/NkUZggxTff+7IvTuIFgp9HLfA+uVWoSFZmc="
             privkey, pubkey = utils.gen_keys()
 
-            WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
-            os.makedirs(WG_DEV_CONF_PATH, exist_ok=True)
-
-            # File is writable, created only if not existing
-            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-            # owner read/write only
-            mode = 0o600
-            privkey_path = os.path.join(WG_DEV_CONF_PATH, "privkey")
-            privkey_fd = os.open(privkey_path, flags, mode)
-            with open(privkey_fd, "w") as f:
-                f.write(privkey)
-
-            pubkey_fd = os.open(
-                os.path.join(WG_DEV_CONF_PATH, "pubkey"), flags, mode
-            )
-            with open(pubkey_fd, "w") as f:
-                f.write(pubkey)
+            try:
+                privkey_path = self.save_keys(wg_if_name, privkey, pubkey)
+            except Exception:
+                privkey_path = None
 
             try:
                 port = utils.find_free_port(self.WG_HOST_IP)
-                # hub.set(wg_if_name, private_key=privkey, listen_port=port)
-                ns_tenant_dev.addr.add(self.WG_HOST_IP)
+
+                try:
+                    ns_tenant_dev.addr.add(self.WG_HOST_IP)
+                except Exception:
+                    pass
                 ns_tenant.netns.execute(
                     [
                         "wg",
@@ -138,13 +126,26 @@ class WireguardPort(object):
                 raise
             except Exception as ex:
                 LOG.debug(ex)
-                raise
 
-        # if self.type == self.WG_TYPE_SPOKE:
-        #     privkey = None
-        #     pubkey = self.pubkey
+    def save_keys(self, wg_if_name, privkey, pubkey):
+        WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
+        os.makedirs(WG_DEV_CONF_PATH, exist_ok=True)
 
-        # save privkey and pubkey files
+        # File is writable, created only if not existing
+        flags = os.O_WRONLY | os.O_CREAT
+        # owner read/write only
+        mode = 0o600
+        privkey_path = os.path.join(WG_DEV_CONF_PATH, "privkey")
+        privkey_fd = os.open(privkey_path, flags, mode)
+        with open(privkey_fd, "w+") as f:
+            f.write(privkey)
+
+        pubkey_fd = os.open(
+            os.path.join(WG_DEV_CONF_PATH, "pubkey"), flags, mode
+        )
+        with open(pubkey_fd, "w+") as f:
+            f.write(pubkey)
+        return privkey_path
 
     def delete(self, network_id):
         """Delete wg port from network namespace.

@@ -3,6 +3,7 @@
 from neutron_lib.plugins.ml2.api import MechanismDriver, PortContext
 from oslo_log import log
 
+from networking_wireguard.constants import WG_TYPE_HUB, WG_TYPE_KEY
 from networking_wireguard.ml2 import utils, wg
 
 LOG = log.getLogger(__name__)
@@ -19,39 +20,26 @@ class WireguardMechanismDriver(MechanismDriver):
         """Run inside the db transaction when creating port."""
         port = context.current
         vif_details = utils.get_vif_details(port)
-
-        try:
+        if WG_TYPE_KEY in vif_details:
             wg_port = wg.WireguardPort(vif_details)
-        except TypeError:
-            LOG.debug("Not a wireguard port!")
-            return
-
-        network_id = utils.get_network_id(port)
-        wg_port.create(network_id)
-
-        # wg_port.configure(context)
+            network_id = utils.get_network_id(port)
+            wg_port.create(network_id)
 
     def update_port_precommit(self, context: PortContext):
         """Run inside the db transaction when updating port."""
         port = context.current
         vif_details = utils.get_vif_details(port)
-        try:
+        if WG_TYPE_KEY in vif_details:
             wg_port = wg.WireguardPort(vif_details)
-        except TypeError:
-            LOG.debug("Not a wireguard port!")
-            return
-
-        LOG.debug(wg_port)
+            LOG.debug("Entered update for wg port")
+            # network_id = utils.get_network_id(port)
+            # wg_port.create(network_id)
 
     def delete_port_precommit(self, context: PortContext):
         """Run inside the db transaction when deleting port."""
         port = context.current
         vif_details = utils.get_vif_details(port)
-        try:
+        if WG_TYPE_KEY in vif_details:
             wg_port = wg.WireguardPort(vif_details)
-        except TypeError:
-            LOG.debug("Not a wireguard port!")
-            return
-
-        network_id = utils.get_network_id(port)
-        wg_port.delete(network_id)
+            network_id = utils.get_network_id(port)
+            wg_port.delete(network_id)
