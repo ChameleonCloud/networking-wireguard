@@ -1,5 +1,6 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
 
+import json
 import os
 import sys
 from shutil import rmtree
@@ -23,16 +24,9 @@ from networking_wireguard.ml2 import utils
 LOG = log.getLogger(__name__)
 
 
-class Peer(object):
-    def __init__(self, endpoint, pubkey) -> None:
-        self.endpoint = endpoint
-        self.pubkey = pubkey
-
-    def get_endpoint(self):
-        return self.endpoint
-
-    def get_pubkey(self):
-        return self.pubkey
+class Peer(dict):
+    def __init__(self, pubkey, endpoint):
+        dict.__init__(self, pubkey=pubkey, endpoint=endpoint)
 
 
 class WireguardPort(object):
@@ -59,8 +53,8 @@ class WireguardPort(object):
         self.type = vif_details.get(WG_TYPE_KEY)
         self.PEER_LIST.append(
             Peer(
-                vif_details.get(WG_ENDPOINT_KEY),
                 vif_details.get(WG_PUBKEY_KEY),
+                vif_details.get(WG_ENDPOINT_KEY),
             )
         )
 
@@ -86,6 +80,9 @@ class WireguardPort(object):
         5. Create and/or move interface to desired namespace
         6. Call steps to configure tunnel parameters
         """
+
+        self.save_peers(port)
+
         # ip_lib objects to represent netns
         netns_name = f"tun-{port.get('project_id')}"
         wg_if_name = f"wg-{port.get('id')}"[0:DEVICE_NAME_MAX_LEN]
@@ -152,9 +149,9 @@ class WireguardPort(object):
                         "set",
                         wg_if_name,
                         "peer",
-                        peer.get_pubkey(),
+                        peer.get("pubkey"),
                         "allowed-ips",
-                        peer.get_endpoint(),
+                        peer.get("endpoint"),
                     ],
                     privsep_exec=True,
                 )
@@ -177,6 +174,17 @@ class WireguardPort(object):
         with open(pubkey_fd, "w+") as f:
             f.write(pubkey)
         return privkey_path
+
+    def save_peers(self, port):
+        wg_if_name = f"wg-{port.get('id')}"[0:DEVICE_NAME_MAX_LEN]
+        WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
+        os.makedirs(WG_DEV_CONF_PATH, exist_ok=True)
+
+        config_path = os.path.join(WG_DEV_CONF_PATH, "peers.json")
+
+        with open(config_path, "w") as configfile:
+            string = json.dumps(self.PEER_LIST)
+            configfile.write(string)
 
     def delete(self, port):
         """Delete wg port from network namespace.
