@@ -155,17 +155,13 @@ class WireguardPort(object):
         # ip_lib objects to represent netns
         ns_root = ip_lib.IPWrapper()
         ns_root_dev = ns_root.device(wg_if_name)
-        try:
+        if ns_root_dev.exists():
             ns_root_dev.link.delete()
-        except privileged.NetworkInterfaceNotFound:
-            pass
 
         ns_tenant = ip_lib.IPWrapper().ensure_namespace(netns_name)
         ns_tenant_dev = ns_tenant.device(wg_if_name)
-        try:
+        if ns_tenant_dev.exists():
             ns_tenant_dev.link.delete()
-        except privileged.NetworkInterfaceNotFound:
-            pass
 
         WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
         try:
