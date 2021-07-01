@@ -11,6 +11,13 @@
     - requires system user cred?
 
 
+
+Load private key and public key from file, if pre-existing
+save hub port’s public key and binding ip+port to vif_details.
+add device public key + IP address  for peers
+save config file with the above, and be able to load it
+handle spoke ports
+
 ### for hub port
 
 - create new wg interface (using convention of wg- <11 chars>) (done)
