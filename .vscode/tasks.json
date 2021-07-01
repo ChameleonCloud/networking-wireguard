@@ -6,7 +6,11 @@
     {
       "label": "stop-q-svc",
       "type": "shell",
-      "command": "sudo systemctl stop devstack@q-svc.service"
+      "command": "sudo systemctl stop devstack@q-svc.service",
+      "presentation": {
+        "reveal": "silent",
+        "close": true
+      }
     }
   ]
 }
