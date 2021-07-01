@@ -170,5 +170,5 @@ class WireguardPort(object):
         WG_DEV_CONF_PATH = os.path.join(self.WG_CONF_ROOT, wg_if_name)
         try:
             rmtree(WG_DEV_CONF_PATH)
-        except Exception:
-            raise
+        except FileNotFoundError:
+            pass
