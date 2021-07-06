@@ -14,9 +14,15 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
 
     _mechanism_drivers = ["logger", "wireguard"]
 
-    fake_wg_pubkey = "xEER7S3J9d3kfA+12fQTCXDs8vBxj4+9hoEgZwU6ZnE="
+    fake_wg_privkey = "uIUsYUy5BkIo2HgoLoXcUs8DhQ84AQRtbErp8nF5nnM="
+    fake_wg_pubkey = "Fk5Fmvn6KS9H+av5szHXN1Hs4Yva6CErVghlnOgEPys="
 
-    HOST = "127.0.0.1"
+    FAKE_HOST = "127.0.0.1"
+
+    fake_endpoint = "8.8.8.8"
+
+    fake_peer_no_endpoint = wg.Peer(fake_wg_pubkey, None)
+    fake_peer = wg.Peer(fake_wg_pubkey, fake_endpoint)
 
     def setUp(self):
 
@@ -25,7 +31,7 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         cfg.CONF.register_group(cfg_grp)
         cfg.CONF.register_opts(cfg_opts, group=cfg_grp)
 
-        cfg.CONF.set_override("WG_HUB_IP", self.HOST, group="wireguard")
+        cfg.CONF.set_override("WG_HUB_IP", self.FAKE_HOST, group="wireguard")
         super().setUp()
 
         self.mech_driver = mech_driver()
@@ -41,7 +47,7 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         fake_segment = fakes.FakeSegment.create_one_segment()
         fake_segments = [fake_segment]
         fake_context = fakes.FakePortContext(
-            port=fake_port, host=self.HOST, segments_to_bind=fake_segments
+            port=fake_port, host=self.FAKE_HOST, segments_to_bind=fake_segments
         )
         return fake_context
 
@@ -73,8 +79,43 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
 
     def test_wg_find_free_port(self):
 
-        free_port = utils.find_free_port(self.HOST)
+        free_port = utils.find_free_port(self.FAKE_HOST)
         self.assertIn(free_port, wg_const.WG_HUB_PORT_RANGE)
+
+    def test_wg_privkey(self):
+        fake_port = self._gen_fake_port(
+            {wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_HUB}
+        )
+        fake_iface = wg.WireguardInterface(fake_port)
+
+        self.assertRaises(FileNotFoundError, fake_iface._loadPrivKey)
+
+        fake_iface.save_privkey(privkey=self.fake_wg_privkey)
+        loaded_privkey = fake_iface._loadPrivKey()
+        self.assertEqual(self.fake_wg_privkey, loaded_privkey)
+
+        # TODO is this intended behavior?
+        self.assertRaises(
+            FileExistsError,
+            fake_iface.save_privkey,
+            privkey=self.fake_wg_privkey,
+        )
+
+    def test_wg_load_peers(self):
+        fake_port = self._gen_fake_port(
+            {wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_HUB}
+        )
+        fake_iface = wg.WireguardInterface(fake_port)
+        self.assertRaises(FileNotFoundError, fake_iface._loadPeers)
+
+        peerlist = [self.fake_peer_no_endpoint, self.fake_peer]
+        fake_iface.save_peers(peerlist)
+
+        loaded_peerlist = fake_iface._loadPeers()
+        self.assertEquals(loaded_peerlist, peerlist)
+
+        # TODO is this intended behavior?
+        self.assertRaises(FileExistsError, fake_iface.save_peers, peerlist)
 
     def test_wg_port_pass(self):
 
