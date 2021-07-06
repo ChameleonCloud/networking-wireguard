@@ -193,9 +193,6 @@ class WireguardInterface(object):
         the "outside" of the tunnel can access network resources.
         """
 
-        if self.wgType is not WG_TYPE_HUB:
-            raise TypeError
-
         # Create iface in root namespace
         wgIface = self.createIfaceNetns(self.ifaceName, None)
         # Ensure namespace exists for project
@@ -248,7 +245,11 @@ class WireguardInterface(object):
             )
 
     def sync_peer_config(self):
-        peerList = self._loadPeers()
+
+        try:
+            peerList = self._loadPeers()
+        except FileNotFoundError:
+            peerList = []
 
         if self.pubKey:
             newPeer = Peer(self.pubKey, self.endpoint)
