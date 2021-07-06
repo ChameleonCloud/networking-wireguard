@@ -108,8 +108,6 @@ class WireguardInterface(object):
 
     def __init__(self, port: dict) -> None:
         """Init values from vif_details dict."""
-        if type(port) is not dict:
-            raise TypeError
 
         # TODO: get this from vif_details
         # vif_details = port.get(portbindings.VIF_DETAILS)
@@ -128,7 +126,6 @@ class WireguardInterface(object):
             self.ifaceName = self._getIfaceName(port)
             self.netnsName = self._getNetnsName(port)
             self.cfgDir = self._getCfgDir(self.ifaceName)
-            self.privKey = self._loadPrivKey()
         elif self.wgType == WG_TYPE_SPOKE:
             # check that pubkey is valid
             if not pubkey:
@@ -211,12 +208,12 @@ class WireguardInterface(object):
         bindIp = self._getBindAddress()
         bindPort = utils.find_free_port(bindIp)
 
-        if self.privKey:
+        try:
+            privkey = self._loadPrivKey()
             privkey_path = self._getPrivKeyPath()
-        else:
-            # generate and save private key, if not present
-            self.privKey = utils.gen_privkey()
-            privkey_path = self.save_privkey(self.privKey)
+        except FileNotFoundError:
+            privkey = utils.gen_privkey()
+            privkey_path = self.save_privkey(privkey)
 
         try:
             # TODO get cidr for bind ip
