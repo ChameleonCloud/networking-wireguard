@@ -6,8 +6,6 @@ from neutron_lib.plugins.ml2 import api
 from oslo_log import log
 
 from networking_wireguard.constants import (
-    WG_ENDPOINT_KEY,
-    WG_PUBKEY_KEY,
     WG_TYPE_HUB,
     WG_TYPE_KEY,
     WG_TYPE_SPOKE,

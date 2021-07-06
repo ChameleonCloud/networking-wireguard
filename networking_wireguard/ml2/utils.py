@@ -1,19 +1,11 @@
 """Collection of useful methods."""
 
+import os
 import socket
 import subprocess
 from contextlib import closing
-from typing import Tuple
 
 from networking_wireguard.constants import WG_HUB_PORT_RANGE
-
-
-def get_vif_details(port) -> dict:
-    """Safe getter for vif_details."""
-    if type(port) is dict:
-        return port.get("binding:profile")
-    else:
-        return {}
 
 
 def get_network_id(port) -> str:
@@ -24,7 +16,7 @@ def get_network_id(port) -> str:
         return ""
 
 
-def gen_keys() -> Tuple[str, str]:
+def gen_privkey() -> str:
     """
     Generate a WireGuard private & public key.
 
@@ -32,14 +24,26 @@ def gen_keys() -> Tuple[str, str]:
     Returns (private_key, public_key), both strings
     """
     privkey = subprocess.check_output(["wg", "genkey"]).decode("utf-8").strip()
-    pubkey = (
-        subprocess.check_output(
-            ["wg", "pubkey"], input=privkey.encode("utf-8")
-        )
-        .decode("utf-8")
-        .strip()
-    )
-    return (privkey, pubkey)
+    return privkey
+
+
+def save_file(path, data):
+    """Wrapper to save a file.
+
+    Ensure path exists, and set some permissions on the file.
+    Returns path to the saved file.
+    """
+
+    # ensure path exists
+    dirname = os.path.dirname(path)
+    os.makedirs(dirname, exist_ok=True)
+
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    # owner read/write only
+    mode = 0o600
+    file_fd = os.open(path, flags, mode)
+    with open(file_fd, "w+") as f:
+        f.write(data)
 
 
 def find_free_port(ip_address, port_range=WG_HUB_PORT_RANGE):
