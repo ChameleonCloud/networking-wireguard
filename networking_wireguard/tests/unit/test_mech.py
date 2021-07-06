@@ -16,6 +16,8 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
 
     fake_wg_pubkey = "xEER7S3J9d3kfA+12fQTCXDs8vBxj4+9hoEgZwU6ZnE="
 
+    HOST = "127.0.0.1"
+
     def setUp(self):
 
         cfg_grp = cfg.OptGroup("wireguard")
@@ -23,7 +25,7 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         cfg.CONF.register_group(cfg_grp)
         cfg.CONF.register_opts(cfg_opts, group=cfg_grp)
 
-        cfg.CONF.set_override("WG_HUB_IP", "8.8.8.8", group="wireguard")
+        cfg.CONF.set_override("WG_HUB_IP", self.HOST, group="wireguard")
         super().setUp()
 
         self.mech_driver = mech_driver()
@@ -38,9 +40,8 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         fake_port = self._gen_fake_port(vif_details=vif_details)
         fake_segment = fakes.FakeSegment.create_one_segment()
         fake_segments = [fake_segment]
-        fake_host = "8.8.8.8"
         fake_context = fakes.FakePortContext(
-            port=fake_port, host=fake_host, segments_to_bind=fake_segments
+            port=fake_port, host=self.HOST, segments_to_bind=fake_segments
         )
         return fake_context
 
@@ -69,6 +70,11 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         }
         fake_port_spoke = self._gen_fake_port(vif_details_spoke)
         wg.WireguardInterface(fake_port_spoke)
+
+    def test_wg_find_free_port(self):
+
+        free_port = utils.find_free_port(self.HOST)
+        self.assertIn(free_port, wg_const.WG_HUB_PORT_RANGE)
 
     def test_wg_port_pass(self):
 
