@@ -2,7 +2,7 @@
 
 import json
 import os
-import sys
+from collections.abc import Mapping
 from shutil import rmtree
 
 from neutron.agent.linux import ip_lib
@@ -99,16 +99,17 @@ class WireguardInterface(object):
             return savedPeers
 
     def _getBindAddress(self):
-        bind_ip = self.WG_CONF.get("WG_HUB_IP")
-        return bind_ip
+        if isinstance(self.WG_CONF, Mapping):
+            bind_ip = self.WG_CONF.get("WG_HUB_IP")
+            return bind_ip
+        else:
+            raise TypeError
 
     def __init__(self, port: dict) -> None:
         """Init values from vif_details dict."""
 
-        # TODO: get this from vif_details
-        # vif_details = port.get(portbindings.VIF_DETAILS)
-        vif_details = port.get(portbindings.PROFILE)
-        if type(vif_details) is not dict:
+        vif_details = port.get(portbindings.VIF_DETAILS)
+        if not isinstance(vif_details, Mapping):
             raise TypeError
 
         pubkey = vif_details.get(WG_PUBKEY_KEY)
@@ -273,6 +274,18 @@ class WireguardInterface(object):
         peer_list_json = json.dumps(peerList)
 
         utils.save_file(config_path, peer_list_json)
+
+    # def set_vif_details(self, context: api.PortContext, vif_details: dict):
+
+    #     segments_to_bind = context.segments_to_bind
+    #     if type(segments_to_bind) is list:
+    #         segment_id = next(iter(segments_to_bind), None)
+    #     else:
+    #         segment_id = None
+
+    #     vif_type = context.vif_type
+
+    #     context.set_binding(segment_id, vif_type, vif_details, None)
 
     def delete(self, port):
         """Delete wg port from network namespace.

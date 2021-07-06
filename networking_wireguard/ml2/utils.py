@@ -3,15 +3,17 @@
 import os
 import socket
 import subprocess
+from collections.abc import Mapping
 from contextlib import closing
 
 from networking_wireguard.constants import WG_HUB_PORT_RANGE
 
 
-def get_network_id(port) -> str:
+def get_network_id(port):
     """Safe getter for network_id."""
-    if type(port) is dict:
-        return port.get("network_id")
+    if isinstance(port, Mapping):
+        network_id = port.get("network_id")
+        return network_id
     else:
         return ""
 

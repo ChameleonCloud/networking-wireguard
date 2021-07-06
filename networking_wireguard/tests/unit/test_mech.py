@@ -4,6 +4,7 @@ from neutron_lib.api.definitions import portbindings
 from oslo_config import cfg
 
 import networking_wireguard.constants as wg_const
+from networking_wireguard.ml2 import utils, wg
 from networking_wireguard.ml2.driver import (
     WireguardMechanismDriver as mech_driver,
 )
@@ -12,6 +13,8 @@ from networking_wireguard.ml2.driver import (
 class TestWGMechanismDriverBase(TestMl2PortsV2):
 
     _mechanism_drivers = ["logger", "wireguard"]
+
+    fake_wg_pubkey = "xEER7S3J9d3kfA+12fQTCXDs8vBxj4+9hoEgZwU6ZnE="
 
     def setUp(self):
 
@@ -25,43 +28,70 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
 
         self.mech_driver = mech_driver()
 
-    def test_port_wg_pass(self):
+    def _gen_fake_port(self, vif_details=None):
+        port_dict = {portbindings.VIF_DETAILS: vif_details}
+        fake_port = fakes.FakePort.create_one_port(port_dict).info()
+        return fake_port
 
-        fake_port = fakes.FakePort.create_one_port().info()
+    def _gen_fake_portContext(self, vif_details=None):
 
+        fake_port = self._gen_fake_port(vif_details=vif_details)
         fake_segment = fakes.FakeSegment.create_one_segment()
         fake_segments = [fake_segment]
-
         fake_host = "8.8.8.8"
-
         fake_context = fakes.FakePortContext(
             port=fake_port, host=fake_host, segments_to_bind=fake_segments
         )
+        return fake_context
+
+    def test_wg_obj_pass(self):
+        fake_port_pass = self._gen_fake_port()
+        # wg.WireguardInterface(fake_port_pass)
+        self.assertRaises(TypeError, wg.WireguardInterface, fake_port_pass)
+
+    def test_wg_obj_hub(self):
+        vif_details_hub = {
+            wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_HUB,
+        }
+        fake_port_hub = self._gen_fake_port(vif_details_hub)
+        wg.WireguardInterface(fake_port_hub)
+
+    def test_wg_obj_spoke(self):
+        vif_details_spoke = {
+            wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_SPOKE,
+        }
+        fake_port_spoke = self._gen_fake_port(vif_details_spoke)
+        self.assertRaises(TypeError, wg.WireguardInterface, fake_port_spoke)
+
+        vif_details_spoke = {
+            wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_SPOKE,
+            wg_const.WG_PUBKEY_KEY: self.fake_wg_pubkey,
+        }
+        fake_port_spoke = self._gen_fake_port(vif_details_spoke)
+        wg.WireguardInterface(fake_port_spoke)
+
+    def test_wg_port_pass(self):
+
+        fake_context = self._gen_fake_portContext()
+        self.mech_driver.initialize()
+        self.mech_driver.create_port_precommit(context=fake_context)
+        self.mech_driver.update_port_precommit(context=fake_context)
+        self.mech_driver.delete_port_precommit(context=fake_context)
+
+    def test_wg_port_hub(self):
+
+        vif_details = {wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_HUB}
+        fake_context = self._gen_fake_portContext(vif_details)
 
         self.mech_driver.initialize()
         self.mech_driver.create_port_precommit(context=fake_context)
         self.mech_driver.update_port_precommit(context=fake_context)
         self.mech_driver.delete_port_precommit(context=fake_context)
 
-    def test_port_wg_hub(self):
+    def test_wg_port_spoke(self):
 
-        port_details = {
-            portbindings.PROFILE: {
-                wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_HUB,
-            },
-            portbindings.VIF_DETAILS: {},
-        }
-
-        fake_port = fakes.FakePort().create_one_port(port_details)
-
-        fake_segment = fakes.FakeSegment.create_one_segment()
-        fake_segments = [fake_segment]
-
-        fake_host = "8.8.8.8"
-
-        fake_context = fakes.FakePortContext(
-            port=fake_port, host=fake_host, segments_to_bind=fake_segments
-        )
+        vif_details = {wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_SPOKE}
+        fake_context = self._gen_fake_portContext(vif_details)
 
         self.mech_driver.initialize()
         self.mech_driver.create_port_precommit(context=fake_context)

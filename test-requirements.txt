@@ -14,5 +14,6 @@ ddt>=1.0.1 # MIT
 # Needed to run DB commands in virtualenvs
 PyMySQL>=0.7.6 # MIT License
 
-neutron
-pytest
+oslo.cache
+memcache
+etcd3gw

@@ -1,6 +1,7 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
 
-import neutron_lib.constants as const
+from collections.abc import Mapping
+
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.plugins.ml2 import api
 from oslo_log import log
@@ -28,18 +29,6 @@ class WireguardMechanismDriver(api.MechanismDriver):
         """
         pass
 
-    # def set_vif_details(self, context: api.PortContext, vif_details: dict):
-
-    #     segments_to_bind = context.segments_to_bind
-    #     if type(segments_to_bind) is list:
-    #         segment_id = next(iter(segments_to_bind), None)
-    #     else:
-    #         segment_id = None
-
-    #     vif_type = context.vif_type
-
-    #     context.set_binding(segment_id, vif_type, vif_details, None)
-
     def create_port_precommit(self, context: api.PortContext):
         """Allocate resources for a new port.
 
@@ -54,23 +43,18 @@ class WireguardMechanismDriver(api.MechanismDriver):
         with the neutron port.
         """
         port = context.current
-        # if not context.host or port["status"] == const.PORT_STATUS_ACTIVE:
-        #     # don't need to do anything if the port is already active
-        #     return
-
-        # TODO use vif_details instead
-        # vif_details = port.get(portbindings.PROFILE)
-
-        if isinstance(port, dict):
-            profile = port.get(portbindings.PROFILE)
-            wg_type = profile.get(WG_TYPE_KEY)
-            if wg_type == WG_TYPE_HUB:
-                wg_port = WireguardInterface(port)
-                wg_port.createHubPort(port)
-            elif wg_type == WG_TYPE_SPOKE:
-                return
-            else:
-                return
+        if isinstance(port, Mapping):
+            vif_details = port.get(portbindings.VIF_DETAILS)
+            if isinstance(vif_details, Mapping):
+                wg_type = vif_details.get(WG_TYPE_KEY)
+                if wg_type == WG_TYPE_HUB:
+                    wg_port = WireguardInterface(port)
+                    wg_port.createHubPort(port)
+                elif wg_type == WG_TYPE_SPOKE:
+                    # TODO implement spoke behavior
+                    return
+                else:
+                    return
 
     def update_port_precommit(self, context: api.PortContext):
         """Run inside the db transaction when updating port.
@@ -78,17 +62,18 @@ class WireguardMechanismDriver(api.MechanismDriver):
         This updates an existing wireguard interface, associated with the port.
         """
         port = context.current
-
-        if type(port) is dict:
-            profile = port.get(portbindings.PROFILE)
-            wg_type = profile.get(WG_TYPE_KEY)
-            if wg_type == WG_TYPE_HUB:
-                wg_port = WireguardInterface(port)
-                LOG.debug(f"Entered update for wg port{wg_port}")
-            elif wg_type == WG_TYPE_SPOKE:
-                return
-            else:
-                return
+        if isinstance(port, Mapping):
+            vif_details = port.get(portbindings.VIF_DETAILS)
+            if isinstance(vif_details, Mapping):
+                wg_type = vif_details.get(WG_TYPE_KEY)
+                if wg_type == WG_TYPE_HUB:
+                    wg_port = WireguardInterface(port)
+                    LOG.debug(f"Entered update for wg port{wg_port}")
+                elif wg_type == WG_TYPE_SPOKE:
+                    # TODO implement spoke behavior
+                    return
+                else:
+                    return
 
     def delete_port_precommit(self, context: api.PortContext):
         """Run inside the db transaction when deleting port.
@@ -96,13 +81,15 @@ class WireguardMechanismDriver(api.MechanismDriver):
         This deletes an existing wireguard interface, associated with the port.
         """
         port = context.current
-        if type(port) is dict:
-            profile = port.get(portbindings.PROFILE)
-            wg_type = profile.get(WG_TYPE_KEY)
-            if wg_type == WG_TYPE_HUB:
-                wg_port = WireguardInterface(port)
-                wg_port.delete(port)
-            elif wg_type == WG_TYPE_SPOKE:
-                return
-            else:
-                return
+        if isinstance(port, Mapping):
+            vif_details = port.get(portbindings.VIF_DETAILS)
+            if isinstance(vif_details, Mapping):
+                wg_type = vif_details.get(WG_TYPE_KEY)
+                if wg_type == WG_TYPE_HUB:
+                    wg_port = WireguardInterface(port)
+                    wg_port.delete(port)
+                elif wg_type == WG_TYPE_SPOKE:
+                    # TODO implement spoke behavior
+                    return
+                else:
+                    return
