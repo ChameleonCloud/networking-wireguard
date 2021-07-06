@@ -76,7 +76,6 @@ class WireguardInterface(object):
         cfg_opts = [cfg.HostAddressOpt("WG_HUB_IP")]
         cfg.CONF.register_group(cfg_grp)
         cfg.CONF.register_opts(cfg_opts, group=cfg_grp)
-        cfg.CONF(sys.argv[1:])
         self.WG_CONF = cfg.CONF.wireguard
 
     def _getPrivKeyPath(self):
@@ -100,9 +99,6 @@ class WireguardInterface(object):
             return savedPeers
 
     def _getBindAddress(self):
-        if type(self.WG_CONF) is not dict:
-            raise TypeError
-
         bind_ip = self.WG_CONF.get("WG_HUB_IP")
         return bind_ip
 
@@ -117,6 +113,8 @@ class WireguardInterface(object):
 
         pubkey = vif_details.get(WG_PUBKEY_KEY)
         endpoint = vif_details.get(WG_ENDPOINT_KEY)
+
+        self._loadPluginConfig()
 
         # Check if hub or spoke port
         self.wgType = vif_details.get(WG_TYPE_KEY)
