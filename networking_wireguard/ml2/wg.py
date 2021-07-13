@@ -255,8 +255,8 @@ class WireguardInterface(object):
         except FileNotFoundError:
             peerList = []
 
-        if self.pubKey:
-            newPeer = Peer(self.pubKey, self.endpoint)
+        if self.pubkey:
+            newPeer = Peer(self.pubkey, self.endpoint)
             if newPeer not in peerList:
                 peerList.append(newPeer)
 
@@ -279,7 +279,7 @@ class WireguardInterface(object):
         utils.save_file(config_path, peer_list_json)
 
     def update_binding_vif_details(
-        self, context: api.PortContext, vif_details: dict
+        self, context: api.PortContext, vif_details: Mapping
     ):
         segments_to_bind = context.segments_to_bind
         if type(segments_to_bind) is list:
