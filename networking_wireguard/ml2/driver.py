@@ -70,9 +70,11 @@ class WireguardMechanismDriver(api.MechanismDriver):
                     wg_port = WireguardInterface(port)
                     LOG.debug(f"Entered update for wg port{wg_port}")
                 elif wg_type == WG_TYPE_SPOKE:
-                    # TODO implement spoke behavior
+                    """Nothing to do, only vif_details changes,
+                    and it is within the port object."""
                     return
                 else:
+                    """Nothing to do."""
                     return
 
     def delete_port_precommit(self, context: api.PortContext):
@@ -89,7 +91,8 @@ class WireguardMechanismDriver(api.MechanismDriver):
                     wg_port = WireguardInterface(port)
                     wg_port.delete(port)
                 elif wg_type == WG_TYPE_SPOKE:
-                    # TODO implement spoke behavior
+                    """Nothing to do, only removing the neutron port object."""
                     return
                 else:
+                    """Nothing to do."""
                     return
