@@ -9,6 +9,7 @@ from neutron.agent.linux import ip_lib
 from neutron.privileged.agent.linux import ip_lib as privileged
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.constants import DEVICE_NAME_MAX_LEN
+from neutron_lib.plugins.ml2 import api
 from oslo_config import cfg
 from oslo_log import log
 
@@ -228,6 +229,7 @@ class WireguardInterface(object):
             )
         except IOError:
             LOG.warn("Failed to bind port")
+            # TODO delete half-made port?
             raise
 
         peerList = self.sync_peer_config()
@@ -275,17 +277,16 @@ class WireguardInterface(object):
 
         utils.save_file(config_path, peer_list_json)
 
-    # def set_vif_details(self, context: api.PortContext, vif_details: dict):
-
-    #     segments_to_bind = context.segments_to_bind
-    #     if type(segments_to_bind) is list:
-    #         segment_id = next(iter(segments_to_bind), None)
-    #     else:
-    #         segment_id = None
-
-    #     vif_type = context.vif_type
-
-    #     context.set_binding(segment_id, vif_type, vif_details, None)
+    def update_binding_vif_details(
+        self, context: api.PortContext, vif_details: dict
+    ):
+        segments_to_bind = context.segments_to_bind
+        if type(segments_to_bind) is list:
+            segment_id = next(iter(segments_to_bind), None)
+        else:
+            segment_id = None
+        vif_type = context.current.get("vif_type")
+        context.set_binding(segment_id, vif_type, vif_details, None)
 
     def delete(self, port):
         """Delete wg port from network namespace.
@@ -294,17 +295,11 @@ class WireguardInterface(object):
         but fail to move it.
         """
 
-        netns_name = f"tun-{port.get('project_id')}"
-        wg_if_name = f"wg-{port.get('id')}"[0:DEVICE_NAME_MAX_LEN]
-
-        # ip_lib objects to represent netns
-        ns_root = ip_lib.IPWrapper()
-        ns_root_dev = ns_root.device(wg_if_name)
+        ns_root_dev = ip_lib.IPWrapper().device(self.ifaceName)
         if ns_root_dev.exists():
             ns_root_dev.link.delete()
 
-        ns_tenant = ip_lib.IPWrapper().ensure_namespace(netns_name)
-        ns_tenant_dev = ns_tenant.device(wg_if_name)
+        ns_tenant_dev = ip_lib.IPWrapper(self.netnsName).device(self.ifaceName)
         if ns_tenant_dev.exists():
             ns_tenant_dev.link.delete()
 

@@ -121,9 +121,9 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
 
         fake_context = self._gen_fake_portContext()
         self.mech_driver.initialize()
-        self.mech_driver.create_port_precommit(context=fake_context)
-        self.mech_driver.update_port_precommit(context=fake_context)
-        self.mech_driver.delete_port_precommit(context=fake_context)
+        self.mech_driver.create_port_precommit(context=fake_context)  # type: ignore
+        self.mech_driver.update_port_precommit(context=fake_context)  # type: ignore
+        self.mech_driver.delete_port_precommit(context=fake_context)  # type: ignore
 
     def test_wg_port_hub(self):
 
@@ -131,9 +131,9 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         fake_context = self._gen_fake_portContext(vif_details)
 
         self.mech_driver.initialize()
-        self.mech_driver.create_port_precommit(context=fake_context)
-        self.mech_driver.update_port_precommit(context=fake_context)
-        self.mech_driver.delete_port_precommit(context=fake_context)
+        self.mech_driver.create_port_precommit(context=fake_context)  # type: ignore
+        self.mech_driver.update_port_precommit(context=fake_context)  # type: ignore
+        self.mech_driver.delete_port_precommit(context=fake_context)  # type: ignore
 
     def test_wg_port_spoke(self):
 
@@ -141,6 +141,14 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         fake_context = self._gen_fake_portContext(vif_details)
 
         self.mech_driver.initialize()
-        self.mech_driver.create_port_precommit(context=fake_context)
-        self.mech_driver.update_port_precommit(context=fake_context)
-        self.mech_driver.delete_port_precommit(context=fake_context)
+        self.mech_driver.create_port_precommit(context=fake_context)  # type: ignore
+        self.mech_driver.update_port_precommit(context=fake_context)  # type: ignore
+        self.mech_driver.delete_port_precommit(context=fake_context)  # type: ignore
+
+    def test_wg_set_binding(self):
+        vif_details = {wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_HUB}
+        fake_context = self._gen_fake_portContext(vif_details)
+
+        wg.WireguardInterface.update_binding_vif_details(
+            self, context=fake_context, vif_details=vif_details  # type: ignore
+        )
