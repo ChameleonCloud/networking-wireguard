@@ -1,13 +1,12 @@
 from neutron.tests.unit import fake_resources as fakes
 from neutron.tests.unit.plugins.ml2.test_plugin import TestMl2PortsV2
 from neutron_lib.api.definitions import portbindings
+from neutron_lib.plugins.ml2 import api
 from oslo_config import cfg
 
 import networking_wireguard.constants as wg_const
 from networking_wireguard.ml2 import utils, wg
-from networking_wireguard.ml2.driver import (
-    WireguardMechanismDriver as mech_driver,
-)
+from networking_wireguard.ml2.driver import WireguardMechanismDriver as mech_driver
 
 
 class TestWGMechanismDriverBase(TestMl2PortsV2):
@@ -64,18 +63,34 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         wg.WireguardInterface(fake_port_hub)
 
     def test_wg_obj_spoke(self):
+
+        # No details passed
         vif_details_spoke = {
             wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_SPOKE,
         }
         fake_port_spoke = self._gen_fake_port(vif_details_spoke)
         self.assertRaises(TypeError, wg.WireguardInterface, fake_port_spoke)
 
+        # Pass only pubkey
         vif_details_spoke = {
             wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_SPOKE,
             wg_const.WG_PUBKEY_KEY: self.fake_wg_pubkey,
         }
         fake_port_spoke = self._gen_fake_port(vif_details_spoke)
-        wg.WireguardInterface(fake_port_spoke)
+        wg_spokeport = wg.WireguardInterface(fake_port_spoke)
+        self.assertEqual(self.fake_wg_pubkey, wg_spokeport.pubkey)
+        self.assertIsNone(wg_spokeport.endpoint)
+
+        # Pass pubkey and endpoint
+        vif_details_spoke = {
+            wg_const.WG_TYPE_KEY: wg_const.WG_TYPE_SPOKE,
+            wg_const.WG_PUBKEY_KEY: self.fake_wg_pubkey,
+            wg_const.WG_ENDPOINT_KEY: self.fake_endpoint,
+        }
+        fake_port_spoke = self._gen_fake_port(vif_details_spoke)
+        wg_spokeport = wg.WireguardInterface(fake_port_spoke)
+        self.assertEqual(self.fake_wg_pubkey, wg_spokeport.pubkey)
+        self.assertEqual(self.fake_endpoint, wg_spokeport.endpoint)
 
     def test_wg_find_free_port(self):
 

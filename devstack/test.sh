@@ -12,6 +12,6 @@ port_id=$(openstack port create -f value -c id \
 
 sudo ip -all netns exec wg show
 sleep 1
-openstack port delete hubPort
+openstack port delete $port_id
 
 set +o xtrace

@@ -4,6 +4,7 @@ import json
 import os
 from collections.abc import Mapping
 from shutil import rmtree
+from typing import Literal
 
 from neutron.agent.linux import ip_lib
 from neutron.privileged.agent.linux import ip_lib as privileged
@@ -37,7 +38,7 @@ class Peer(dict):
 class WireguardInterface(object):
     """Define object to represent wireguard port."""
 
-    pubKey = None
+    pubkey = None
     privKey = None
     endpoint = None
 
@@ -285,7 +286,7 @@ class WireguardInterface(object):
             segment_id = next(iter(segments_to_bind), None)
         else:
             segment_id = None
-        vif_type = context.current.get("vif_type")
+        vif_type = "wireguard"
         context.set_binding(segment_id, vif_type, vif_details, None)
 
     def delete(self, port):
