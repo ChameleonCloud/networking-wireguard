@@ -4,7 +4,6 @@ import json
 import os
 from collections.abc import Mapping
 from shutil import rmtree
-from typing import Literal
 
 from neutron.agent.linux import ip_lib
 from neutron.privileged.agent.linux import ip_lib as privileged
@@ -15,11 +14,12 @@ from oslo_config import cfg
 from oslo_log import log
 
 from networking_wireguard.constants import (
+    DEVICE_OWNER_KEY,
+    DEVICE_OWNER_WG_HUB,
+    DEVICE_OWNER_WG_SPOKE,
     WG_ENDPOINT_KEY,
+    WG_INTF_OWNERS,
     WG_PUBKEY_KEY,
-    WG_TYPE_HUB,
-    WG_TYPE_KEY,
-    WG_TYPE_SPOKE,
 )
 from networking_wireguard.ml2 import utils
 
@@ -110,6 +110,14 @@ class WireguardInterface(object):
     def __init__(self, port: dict) -> None:
         """Init values from vif_details dict."""
 
+        device_owner = port.get(DEVICE_OWNER_KEY)
+
+        # ensure correct interface type
+        if device_owner not in WG_INTF_OWNERS:
+            raise TypeError
+
+        self._loadPluginConfig()
+
         vif_details = port.get(portbindings.VIF_DETAILS)
         if not isinstance(vif_details, Mapping):
             raise TypeError
@@ -117,17 +125,12 @@ class WireguardInterface(object):
         pubkey = vif_details.get(WG_PUBKEY_KEY)
         endpoint = vif_details.get(WG_ENDPOINT_KEY)
 
-        self._loadPluginConfig()
-
-        # Check if hub or spoke port
-        self.wgType = vif_details.get(WG_TYPE_KEY)
-
-        if self.wgType == WG_TYPE_HUB:
+        if device_owner == DEVICE_OWNER_WG_HUB:
             # Init iface name and config dir
             self.ifaceName = self._getIfaceName(port)
             self.netnsName = self._getNetnsName(port)
             self.cfgDir = self._getCfgDir(self.ifaceName)
-        elif self.wgType == WG_TYPE_SPOKE:
+        elif device_owner == DEVICE_OWNER_WG_SPOKE:
             # check that pubkey is valid
             if not pubkey:
                 raise TypeError
@@ -135,7 +138,6 @@ class WireguardInterface(object):
 
             # check that endpoint is ip address or hostname
             self.endpoint = endpoint
-
         else:
             # Not a wireguard port, just return
             raise TypeError

@@ -7,9 +7,9 @@ from neutron_lib.plugins.ml2 import api
 from oslo_log import log
 
 from networking_wireguard.constants import (
-    WG_TYPE_HUB,
-    WG_TYPE_KEY,
-    WG_TYPE_SPOKE,
+    DEVICE_OWNER_CHANNEL_PREFIX,
+    DEVICE_OWNER_WG_HUB,
+    DEVICE_OWNER_WG_SPOKE,
 )
 from networking_wireguard.ml2.wg import WireguardInterface
 
@@ -27,6 +27,7 @@ class WireguardMechanismDriver(api.MechanismDriver):
         It loads the relevant config from the config dir, and will leave the
         port in an error state if that is not found.
         """
+
         pass
 
     def create_port_precommit(self, context: api.PortContext):
@@ -44,13 +45,12 @@ class WireguardMechanismDriver(api.MechanismDriver):
         """
         port = context.current
         if isinstance(port, Mapping):
-            vif_details = port.get(portbindings.VIF_DETAILS)
-            if isinstance(vif_details, Mapping):
-                wg_type = vif_details.get(WG_TYPE_KEY)
-                if wg_type == WG_TYPE_HUB:
-                    wg_port = WireguardInterface(port)
+            device_owner = port.get("device_owner")
+            if device_owner.startswith(DEVICE_OWNER_CHANNEL_PREFIX):
+                wg_port = WireguardInterface(port)
+                if device_owner == DEVICE_OWNER_WG_HUB:
                     wg_port.createHubPort(port)
-                elif wg_type == WG_TYPE_SPOKE:
+                elif device_owner == DEVICE_OWNER_WG_SPOKE:
                     # TODO implement spoke behavior
                     return
                 else:
@@ -63,13 +63,12 @@ class WireguardMechanismDriver(api.MechanismDriver):
         """
         port = context.current
         if isinstance(port, Mapping):
-            vif_details = port.get(portbindings.VIF_DETAILS)
-            if isinstance(vif_details, Mapping):
-                wg_type = vif_details.get(WG_TYPE_KEY)
-                if wg_type == WG_TYPE_HUB:
-                    wg_port = WireguardInterface(port)
+            device_owner = port.get("device_owner")
+            if device_owner.startswith(DEVICE_OWNER_CHANNEL_PREFIX):
+                wg_port = WireguardInterface(port)
+                if device_owner == DEVICE_OWNER_WG_HUB:
                     LOG.debug(f"Entered update for wg port{wg_port}")
-                elif wg_type == WG_TYPE_SPOKE:
+                elif device_owner == DEVICE_OWNER_WG_SPOKE:
                     """Nothing to do, only vif_details changes,
                     and it is within the port object."""
                     return
@@ -84,13 +83,12 @@ class WireguardMechanismDriver(api.MechanismDriver):
         """
         port = context.current
         if isinstance(port, Mapping):
-            vif_details = port.get(portbindings.VIF_DETAILS)
-            if isinstance(vif_details, Mapping):
-                wg_type = vif_details.get(WG_TYPE_KEY)
-                if wg_type == WG_TYPE_HUB:
-                    wg_port = WireguardInterface(port)
+            device_owner = port.get("device_owner")
+            if device_owner.startswith(DEVICE_OWNER_CHANNEL_PREFIX):
+                wg_port = WireguardInterface(port)
+                if device_owner == DEVICE_OWNER_WG_HUB:
                     wg_port.delete(port)
-                elif wg_type == WG_TYPE_SPOKE:
+                elif device_owner == DEVICE_OWNER_WG_SPOKE:
                     """Nothing to do, only removing the neutron port object."""
                     return
                 else:
