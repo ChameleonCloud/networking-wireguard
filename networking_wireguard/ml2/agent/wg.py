@@ -21,7 +21,7 @@ from networking_wireguard.constants import (
     WG_INTF_OWNERS,
     WG_PUBKEY_KEY,
 )
-from networking_wireguard.ml2 import utils
+from networking_wireguard.ml2.agent import utils
 
 LOG = log.getLogger(__name__)
 
