@@ -6,6 +6,7 @@ from neutron_lib.api.definitions import portbindings
 from neutron_lib.plugins.ml2 import api
 from oslo_log import log
 
+from networking_wireguard import constants as wg_const
 from networking_wireguard.constants import (
     DEVICE_OWNER_CHANNEL_PREFIX,
     DEVICE_OWNER_WG_HUB,
@@ -29,6 +30,12 @@ class WireguardMechanismDriver(api.MechanismDriver):
         """
 
         pass
+
+    def bind_port(self, context: api.PortContext):
+
+        vif_type = wg_const.VIF_TYPE_WG
+        vif_details = {wg_const.WG_PUBKEY_KEY: "BIND_PORT_RAN"}
+        context.set_binding(context.top_bound_segment, vif_type, vif_details)
 
     def create_port_precommit(self, context: api.PortContext):
         """Allocate resources for a new port.
@@ -68,6 +75,7 @@ class WireguardMechanismDriver(api.MechanismDriver):
                 wg_port = WireguardInterface(port)
                 if device_owner == DEVICE_OWNER_WG_HUB:
                     LOG.debug(f"Entered update for wg port{wg_port}")
+                    self.bind_port(context)
                 elif device_owner == DEVICE_OWNER_WG_SPOKE:
                     """Nothing to do, only vif_details changes,
                     and it is within the port object."""

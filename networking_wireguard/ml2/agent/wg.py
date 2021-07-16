@@ -47,6 +47,8 @@ class WireguardInterface(object):
     netnsName = None
     ifaceName = None
 
+    current_vif_details = {}
+
     def _getNetnsName(self, port):
         """Get name of network namespace to use.
 
@@ -118,9 +120,13 @@ class WireguardInterface(object):
 
         self._loadPluginConfig()
 
-        vif_details = port.get(portbindings.VIF_DETAILS)
+        # vif_details = port.get(portbindings.VIF_DETAILS)
+        vif_details = port.get(portbindings.PROFILE)
         if not isinstance(vif_details, Mapping):
             raise TypeError
+
+        # Attach vif details to current port
+        self.current_vif_details.update(vif_details)
 
         pubkey = vif_details.get(WG_PUBKEY_KEY)
         endpoint = vif_details.get(WG_ENDPOINT_KEY)
@@ -215,6 +221,8 @@ class WireguardInterface(object):
             privkey = utils.gen_privkey()
             privkey_path = self.save_privkey(privkey)
 
+        pubkey = utils.gen_pubkey(privkey)
+
         try:
             # TODO get cidr for bind ip
             projectIface.addr.add(bindIp)
@@ -234,6 +242,14 @@ class WireguardInterface(object):
             LOG.warn("Failed to bind port")
             # TODO delete half-made port?
             raise
+        else:
+            # Update vif_details
+            self.current_vif_details.update(
+                {
+                    WG_PUBKEY_KEY: pubkey,
+                    WG_ENDPOINT_KEY: f"{bindIp}:{bindPort}",
+                }
+            )
 
         peerList = self.sync_peer_config()
         for peer in peerList or []:
@@ -280,16 +296,16 @@ class WireguardInterface(object):
 
         utils.save_file(config_path, peer_list_json)
 
-    def update_binding_vif_details(
-        self, context: api.PortContext, vif_details: Mapping
-    ):
-        segments_to_bind = context.segments_to_bind
-        if type(segments_to_bind) is list:
-            segment_id = next(iter(segments_to_bind), None)
+    def update_binding_vif_details(self, context: api.PortContext):
+
+        if type(context.segments_to_bind) is list:
+            segment_id = next(iter(context.segments_to_bind), None)
         else:
             segment_id = None
-        vif_type = "wireguard"
-        context.set_binding(segment_id, vif_type, vif_details, None)
+        vif_type = portbindings.VIF_TYPE_OTHER
+        context.set_binding(
+            segment_id, vif_type, self.current_vif_details, None
+        )
 
     def delete(self, port):
         """Delete wg port from network namespace.

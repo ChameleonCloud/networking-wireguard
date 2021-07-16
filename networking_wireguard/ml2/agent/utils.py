@@ -20,13 +20,30 @@ def get_network_id(port):
 
 def gen_privkey() -> str:
     """
-    Generate a WireGuard private & public key.
+    Generate a WireGuard private key.
 
     Requires that the 'wg' command is available on PATH
     Returns (private_key, public_key), both strings
     """
     privkey = subprocess.check_output(["wg", "genkey"]).decode("utf-8").strip()
     return privkey
+
+
+def gen_pubkey(privkey: str) -> str:
+    """
+    Generate a WireGuard public key.
+
+    Requires that the 'wg' command is available on PATH
+    Returns (private_key, public_key), both strings
+    """
+    pubkey = (
+        subprocess.check_output(
+            ["wg", "pubkey"], input=privkey.encode("utf-8")
+        )
+        .decode("utf-8")
+        .strip()
+    )
+    return pubkey
 
 
 def save_file(path, data):

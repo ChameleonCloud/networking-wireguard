@@ -16,6 +16,10 @@ WG_INTF_OWNERS = (
     DEVICE_OWNER_WG_SPOKE,
 )
 
+AGENT_TYPE_WG = "wireguard agent"
+AGENT_PROCESS_WG = "neutron-wireguard-agent"
+VIF_TYPE_WG = "wireguard"
+
 # used in "vif_details"
 WG_PUBKEY_KEY = "wg_pubkey"
 WG_ENDPOINT_KEY = "wg_endpoint"
