@@ -2,9 +2,7 @@
 
 from collections.abc import Mapping
 
-from neutron.plugins.ml2.drivers.mech_agent import (
-    SimpleAgentMechanismDriverBase,
-)
+from neutron.plugins.ml2.drivers import mech_agent
 from neutron_lib import constants
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.plugins.ml2 import api
@@ -21,34 +19,15 @@ from networking_wireguard.ml2.agent.wg import WireguardInterface
 LOG = log.getLogger(__name__)
 
 
-class WireguardMechanismDriver(SimpleAgentMechanismDriverBase):
+class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
     """Create Wireguard Interfaces."""
 
     def __init__(self):
-
         agent_type = wg_const.AGENT_TYPE_WG
-        vif_type = wg_const.VIF_TYPE_WG
-        vif_details = {
-            portbindings.CAP_PORT_FILTER: False,
-        }
-        supported_vnic_types = [portbindings.VNIC_NORMAL]
-        super().__init__(
-            agent_type,
-            vif_type,
-            vif_details,
-            supported_vnic_types=supported_vnic_types,
-        )
+        super().__init__(agent_type)
 
-    def get_allowed_network_types(self, agent):
-        return [
-            constants.TYPE_LOCAL,
-            constants.TYPE_FLAT,
-            constants.TYPE_VLAN,
-            constants.TYPE_VXLAN,
-        ]
-
-    def get_mappings(self, agent):
-        return agent["configurations"].get("interface_mappings", {})
+    def try_to_bind_segment_for_agent(self, context, segment, agent):
+        LOG.debug(f"attempting to bind segment:{segment} for wg agent:{agent}")
 
 
 # class WireguardMechanismDriver(api.MechanismDriver):

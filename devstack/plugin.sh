@@ -10,6 +10,8 @@ echo_summary "networking-wireguard devstack plugin.sh called: $1/$2"
 # Set Defaults
 NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/networking-wireguard}
 
+WIREGUARD_AGENT_BINARY="${NEUTRON_BIN_DIR}/neutron-wireguard-agent"
+
 # Import utility functions
 # source $TOP_DIR/functions
 # source $TOP_DIR/lib/neutron
@@ -32,6 +34,18 @@ function configure_networking_wireguard {
     # populate_ml2_config /$Q_PLUGIN_CONF_FILE ml2 mechanism_drivers=$Q_ML2_PLUGIN_MECHANISM_DRIVERS
 }
 
+function start_l2_agent_wireguard {
+    local SERVICE_NAME
+    SERVICE_NAME=neutron-wireguard-agent
+
+    run_process $SERVICE_NAME "$WIREGUARD_AGENT_BINARY --config-file $NEUTRON_CONF --config-file $NEUTRON_CORE_PLUGIN_CONF"
+}
+
+function stop_l2_agent_wireguard {
+    local SERVICE_NAME
+    SERVICE_NAME=neutron-wireguard-agent
+    stop_process $SERVICE_NAME
+}
 
 # Restore xtrace
 $_XTRACE_NETWORKING_WG
@@ -57,12 +71,12 @@ if is_service_enabled networking_wireguard; then
     elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
         # Initialize and start the template service
         echo_summary "Initializing plugin networking_wireguard"
+        start_l2_agent_wireguard
     fi
 
     if [[ "$1" == "unstack" ]]; then
         # Shut down template services
-        # no-op
-        :
+        stop_l2_agent_wireguard
     fi
 
     if [[ "$1" == "clean" ]]; then

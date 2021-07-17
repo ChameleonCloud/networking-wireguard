@@ -6,7 +6,7 @@ source "$top_dir"/openrc admin admin
 set -o xtrace
 
 port_id=$(openstack port create -f value -c id \
-    --network private \
+    --network public \
     --binding-profile wg_type=hub \
     hubPort)
 

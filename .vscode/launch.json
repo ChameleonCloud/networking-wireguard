@@ -26,6 +26,22 @@
       "console": "integratedTerminal",
       "preLaunchTask": "stop-q-svc",
       "justMyCode": false
+    },
+    {
+      "name": "neutron-wireguard-agent",
+      "type": "python",
+      "request": "launch",
+      "gevent": true,
+      "program": "/opt/stack/bindep-venv/bin/neutron-wireguard-agent",
+      "args": [
+        "--config-file",
+        "/etc/neutron/neutron.conf",
+        "--config-file",
+        "/etc/neutron/plugins/ml2/ml2_conf.ini"
+      ],
+      "console": "integratedTerminal",
+      "preLaunchTask": "stop-q-svc",
+      "justMyCode": false
     }
   ]
 }
