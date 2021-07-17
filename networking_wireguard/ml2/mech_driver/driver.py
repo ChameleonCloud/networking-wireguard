@@ -27,9 +27,11 @@ class WireguardMechanismDriver(SimpleAgentMechanismDriverBase):
     def __init__(self):
 
         agent_type = wg_const.AGENT_TYPE_WG
-        vif_type = "ovs"
-        vif_details = {}
-        supported_vnic_types = portbindings.VNIC_NORMAL
+        vif_type = wg_const.VIF_TYPE_WG
+        vif_details = {
+            portbindings.CAP_PORT_FILTER: False,
+        }
+        supported_vnic_types = [portbindings.VNIC_NORMAL]
         super().__init__(
             agent_type,
             vif_type,
@@ -38,10 +40,15 @@ class WireguardMechanismDriver(SimpleAgentMechanismDriverBase):
         )
 
     def get_allowed_network_types(self, agent):
-        return [constants.TYPE_FLAT, constants.TYPE_VLAN, constants.TYPE_VXLAN]
+        return [
+            constants.TYPE_LOCAL,
+            constants.TYPE_FLAT,
+            constants.TYPE_VLAN,
+            constants.TYPE_VXLAN,
+        ]
 
     def get_mappings(self, agent):
-        return super().get_mappings(agent)
+        return agent["configurations"].get("interface_mappings", {})
 
 
 # class WireguardMechanismDriver(api.MechanismDriver):
