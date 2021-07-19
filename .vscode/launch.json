@@ -37,10 +37,9 @@
         "--config-file",
         "/etc/neutron/neutron.conf",
         "--config-file",
-        "/etc/neutron/plugins/ml2/ml2_conf.ini"
+        "/etc/neutron/plugins/ml2/wireguard_agent.ini"
       ],
       "console": "integratedTerminal",
-      "preLaunchTask": "stop-q-svc",
       "justMyCode": false
     }
   ]

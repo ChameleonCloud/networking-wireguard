@@ -8,11 +8,13 @@ from neutron.plugins.ml2.drivers.agent import _agent_manager_base as amb
 from neutron.plugins.ml2.drivers.agent import _common_agent as ca
 from neutron_lib import constants
 from neutron_lib.agent import topics
+from neutron_lib.plugins.utils import get_interface_name
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_service import service
 
 from networking_wireguard import constants as wg_const
+from networking_wireguard.ml2.agent import wg
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -24,11 +26,65 @@ class WireguardManagerRpcCallBack(
     sg_rpc.SecurityGroupAgentRpcCallbackMixin,
     amb.CommonAgentManagerRpcCallBackBase,
 ):
-    target = oslo_messaging.Target(version="1.4")
+    target = oslo_messaging.Target(version="1.0")
+
+    def port_update(self, context, **kwargs):
+        port_id = kwargs["port"]["id"]
+        # device_name = self.agent.mgr.get_tap_device_name(port_id)
+        device_name = get_interface_name(
+            port_id, prefix=wg_const.WG_DEVICE_PREFIX
+        )
+        # Put the device name in the updated_devices set.
+        # Do not store port details, as if they're used for processing
+        # notifications there is no guarantee the notifications are
+        # processed in the same order as the relevant API requests.
+        self.updated_devices.add(device_name)
+        LOG.debug("port_update RPC received for port: %s", port_id)
+
+    def binding_deactivate(self, context, **kwargs):
+        if kwargs.get("host") != cfg.CONF.host:
+            return
+        # interface_name = self.agent.mgr.get_tap_device_name(
+        #     kwargs.get("port_id")
+        # )
+        # bridge_name = self.agent.mgr.get_bridge_name(kwargs.get("network_id"))
+        # LOG.debug(
+        #     "Removing device %(interface_name)s from bridge "
+        #     "%(bridge_name)s due to binding being de-activated",
+        #     {"interface_name": interface_name, "bridge_name": bridge_name},
+        # )
+        # self.agent.mgr.remove_interface(bridge_name, interface_name)
+
+    def binding_activate(self, context, **kwargs):
+        if kwargs.get("host") != cfg.CONF.host:
+            return
+        # Since the common agent loop treats added and updated the same way,
+        # just add activated ports to the updated devices list. This way,
+        # adding binding activation is less disruptive to the existing code
+        port_id = kwargs.get("port_id")
+        device_name = get_interface_name(
+            port_id, prefix=wg_const.WG_DEVICE_PREFIX
+        )
+        self.updated_devices.add(device_name)
+        LOG.debug("Binding activation received for port: %s", port_id)
+
+    def port_delete(self, context, **kwargs):
+        port_id = kwargs["port_id"]
+        # device_name = self.agent.mgr.get_tap_device_name(port_id)
+        device_name = get_interface_name(
+            port_id, prefix=wg_const.WG_DEVICE_PREFIX
+        )
+        # Put the device name in the updated_devices set.
+        # Do not store port details, as if they're used for processing
+        # notifications there is no guarantee the notifications are
+        # processed in the same order as the relevant API requests.
+        self.updated_devices.discard(device_name)
+        LOG.debug("port_delete RPC received for port: %s", port_id)
 
 
 class WireguardManager(amb.CommonAgentManagerBase):
     def __init__(self):
+        super(WireguardManager, self).__init__()
 
         self.interface_mappings = {}
         self.mac_device_name_mappings = dict()
@@ -60,9 +116,10 @@ class WireguardManager(amb.CommonAgentManagerBase):
 
     def get_rpc_consumers(self):
         consumers = [
-            [topics.PORT, topics.CREATE],
             [topics.PORT, topics.UPDATE],
             [topics.PORT, topics.DELETE],
+            [topics.PORT_BINDING, topics.DEACTIVATE],
+            [topics.PORT_BINDING, topics.ACTIVATE],
         ]
         return consumers
 
@@ -120,6 +177,7 @@ def main():
         wg_const.AGENT_TYPE_WG,
         wg_const.AGENT_PROCESS_WG,
     )
+
     LOG.info("Agent initialized successfully, now running... ")
     launcher = service.launch(cfg.CONF, agent, restart_method="mutate")
     launcher.wait()

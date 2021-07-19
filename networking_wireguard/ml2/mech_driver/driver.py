@@ -7,6 +7,7 @@ from neutron_lib import constants
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.plugins.ml2 import api
 from oslo_log import log
+from sqlalchemy.sql.expression import true
 
 from networking_wireguard import constants as wg_const
 from networking_wireguard.constants import (
@@ -19,15 +20,64 @@ from networking_wireguard.ml2.agent.wg import WireguardInterface
 LOG = log.getLogger(__name__)
 
 
-class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
+class WireguardMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
     """Create Wireguard Interfaces."""
 
     def __init__(self):
         agent_type = wg_const.AGENT_TYPE_WG
-        super().__init__(agent_type)
+        vif_type = wg_const.VIF_TYPE_WG
+        vif_details = {}
+        supported_vnic_types = [portbindings.VNIC_NORMAL]
 
-    def try_to_bind_segment_for_agent(self, context, segment, agent):
-        LOG.debug(f"attempting to bind segment:{segment} for wg agent:{agent}")
+        super(WireguardMechanismDriver, self).__init__(
+            agent_type=agent_type,
+            vif_type=vif_type,
+            vif_details=vif_details,
+            supported_vnic_types=supported_vnic_types,
+        )
+
+    def get_allowed_network_types(self, agent):
+        return [
+            constants.TYPE_LOCAL,
+            constants.TYPE_FLAT,
+            constants.TYPE_VLAN,
+            constants.TYPE_VXLAN,
+        ]
+
+    def get_mappings(self, agent):
+        return None
+
+    def check_segment_for_agent(self, segment, agent):
+        return True
+
+    # def try_to_bind_segment_for_agent(self, context, segment, agent):
+    #     LOG.debug(f"attempting to bind segment:{segment} for wg agent:{agent}")
+    def bind_port(self, context):
+        return super().bind_port(context)
+
+    def create_port_precommit(self, context):
+        LOG.debug(f"Entered WG create port precommit")
+        return super().create_port_precommit(context)
+
+    def create_port_postcommit(self, context):
+        LOG.debug(f"Entered WG create port postcommit")
+        return super().create_port_postcommit(context)
+
+    def update_port_precommit(self, context):
+        LOG.debug(f"Entered WG update port precommit")
+        return super().update_port_precommit(context)
+
+    def update_port_postcommit(self, context):
+        LOG.debug(f"Entered WG update port postcommit")
+        return super().update_port_postcommit(context)
+
+    def delete_port_precommit(self, context):
+        LOG.debug(f"Entered WG delete port postcommit")
+        return super().delete_port_postcommit(context)
+
+    def delete_port_postcommit(self, context):
+        LOG.debug(f"Entered WG delete port postcommit")
+        return super().delete_port_postcommit(context)
 
 
 # class WireguardMechanismDriver(api.MechanismDriver):
