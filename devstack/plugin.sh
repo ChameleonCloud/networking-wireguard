@@ -9,12 +9,8 @@ echo_summary "networking-wireguard devstack plugin.sh called: $1/$2"
 
 # Set Defaults
 NETWORKING_WIREGUARD_DIR=${NETWORKING_WIREGUARD_DIR:-$DEST/networking-wireguard}
-
+WIREGUARD_AGENT_CONF="${NEUTRON_CORE_PLUGIN_CONF_PATH}/wireguard_agent.ini"
 WIREGUARD_AGENT_BINARY="${NEUTRON_BIN_DIR}/neutron-wireguard-agent"
-
-# Import utility functions
-# source $TOP_DIR/functions
-# source $TOP_DIR/lib/neutron
 
 # Functions
 function install_networking_wireguard {
@@ -31,25 +27,31 @@ function configure_networking_wireguard {
     fi
 
     iniset $NEUTRON_CORE_PLUGIN_CONF ml2 mechanism_drivers $Q_ML2_PLUGIN_MECHANISM_DRIVERS
-    # populate_ml2_config /$Q_PLUGIN_CONF_FILE ml2 mechanism_drivers=$Q_ML2_PLUGIN_MECHANISM_DRIVERS
+    iniset /$WIREGUARD_AGENT_CONF securitygroup firewall_driver neutron.agent.firewall.NoopFirewallDriver
 }
 
 function start_l2_agent_wireguard {
     local SERVICE_NAME
-    SERVICE_NAME=neutron-wireguard-agent
-
-    run_process $SERVICE_NAME "$WIREGUARD_AGENT_BINARY --config-file $NEUTRON_CONF --config-file $NEUTRON_CORE_PLUGIN_CONF"
+    if is_neutron_legacy_enabled; then
+        SERVICE_NAME=q-wg-agt
+    else
+        SERVICE_NAME=neutron-wireguard-agent
+    fi
+    run_process $SERVICE_NAME "$WIREGUARD_AGENT_BINARY --config-file $NEUTRON_CONF --config-file $WIREGUARD_AGENT_CONF"
 }
 
 function stop_l2_agent_wireguard {
     local SERVICE_NAME
-    SERVICE_NAME=neutron-wireguard-agent
+    if is_neutron_legacy_enabled; then
+        SERVICE_NAME=q-wg-agt
+    else
+        SERVICE_NAME=neutron-wireguard-agent
+    fi
     stop_process $SERVICE_NAME
 }
 
 # Restore xtrace
 $_XTRACE_NETWORKING_WG
-
 
 # check for service enabled
 if is_service_enabled networking_wireguard; then
