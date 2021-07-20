@@ -77,6 +77,20 @@ make sure you kill the existing process before running the debugger.
 The script `./devstack/testcopy.sh` will run `openstack port create` with suitable arguments, print the port info, then run `openstack port delete` to clean up.
 
 
+## Development notes
+
+Current status is that all methods in the mechanism driver are called as expected. After running port_create, the port correctly transitions from `vif_type: unbound` to `vif_type: wireguard`. I believe that setting it beforehand will prevent openvswitch from acting on it, but I'm not sure.
+
+All of the implementation methods for creating interfaces, saving config files, and so on, are in `networking_wireguard/ml2/agent/wg.py`
+You can see examples of how they were used in the commented out portions of `networking_wireguard/ml2/mech_driver/driver.py`
+
+As a "quick and dirty" fix, these methods could be called directly from the mechanism driver, leaving the agent as essentially a "noop" to keep neutron happy.
+The risk is that even the "postcommit" methods shouldn't be called in a way that blocks, or the neutron-server can become unresponsive.
+
+There are notification topics present for `port-update`, `port-delete`, `binding-activate`, and `binding-deactivate`, but for some reason only the `port-delete` RPC reaches the agent.
+
+The next debugging step would be to capture the emitted RPC messages, to verify what is being sent / received, and whether it's an issue with agent topic registration, or the correct event not being sent in the first place.
+
 ## Design Goals
 
 ### ML2
