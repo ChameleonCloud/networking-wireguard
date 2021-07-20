@@ -1,6 +1,10 @@
 import sys
+import uuid
 
+import neutron_lib.callbacks.resources
 import oslo_messaging
+from neutron.agent.linux import ip_lib
+from neutron.api.rpc.handlers import resources_rpc as res_rpc
 from neutron.api.rpc.handlers import securitygroups_rpc as sg_rpc
 from neutron.common import config as common_config
 from neutron.conf.agent import common as agent_config
@@ -19,14 +23,22 @@ from networking_wireguard.ml2.agent import wg
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-EXTENSION_DRIVER_TYPE = "wireguard"
+# EXTENSION_DRIVER_TYPE = "wireguard"
 
 
+#
+
+
+####'q-agent-notifier'
+#'q-agent-notifier-binding-activate'
+# 'q-agent-notifier-binding-deactivate'
+#'q-agent-notifier-port-delete'
+#'q-agent-notifier-port-update'
 class WireguardManagerRpcCallBack(
     sg_rpc.SecurityGroupAgentRpcCallbackMixin,
     amb.CommonAgentManagerRpcCallBackBase,
 ):
-    target = oslo_messaging.Target(version="1.0")
+    # target = oslo_messaging.Target(version="1.0")
 
     def port_update(self, context, **kwargs):
         port_id = kwargs["port"]["id"]
@@ -83,14 +95,29 @@ class WireguardManagerRpcCallBack(
 
 
 class WireguardManager(amb.CommonAgentManagerBase):
+
+    resource_provider_uuid5_namespace = uuid.UUID(
+        "4aadce71-5a15-5533-93cb-b5382feb3efd"
+    )
+
     def __init__(self):
         super(WireguardManager, self).__init__()
 
         self.interface_mappings = {}
         self.mac_device_name_mappings = dict()
+        # Create ip manager object for use in methods
+        self.ip = ip_lib.IPWrapper()
 
     def ensure_port_admin_state(self, device, admin_state_up):
-        pass
+        LOG.debug(
+            "Setting admin_state_up to %s for device %s",
+            admin_state_up,
+            device,
+        )
+        if admin_state_up:
+            ip_lib.IPDevice(device).link.set_up()
+        else:
+            ip_lib.IPDevice(device).link.set_down()
 
     def get_agent_configurations(self):
         return {}
@@ -99,14 +126,19 @@ class WireguardManager(amb.CommonAgentManagerBase):
         return "wg-%s" % CONF.host
 
     def get_all_devices(self):
-        devices = set()
-        return devices
+        dev_names = set()
+        for device in self.ip.get_devices(True):
+            dev_name = device.name
+            if dev_name.startswith(wg_const.WG_DEVICE_PREFIX):
+                dev_names.add(dev_name)
+        return dev_names
 
     def get_devices_modified_timestamps(self, devices):
         return {}
 
     def get_extension_driver_type(self):
-        return EXTENSION_DRIVER_TYPE
+        # return EXTENSION_DRIVER_TYPE
+        return None
 
     def get_rpc_callbacks(self, context, agent, sg_agent):
         return WireguardManagerRpcCallBack(context, agent, sg_agent)
@@ -126,7 +158,7 @@ class WireguardManager(amb.CommonAgentManagerBase):
     def plug_interface(
         self, network_id, network_segment, device, device_owner
     ):
-        pass
+        return True
 
     def setup_arp_spoofing_protection(self, device, device_details):
         pass
@@ -148,7 +180,7 @@ def _validate_firewall_driver():
         LOG.error(
             'Unsupported configuration option for "SECURITYGROUP.'
             'firewall_driver"! Only the NoopFirewallDriver is '
-            'supported by DPM agent, but "%s" is configured. '
+            'supported by WG agent, but "%s" is configured. '
             'Set the firewall_driver to "noop" and start the '
             "agent again. Agent terminated!",
             fw_driver,
