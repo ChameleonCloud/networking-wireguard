@@ -22,7 +22,8 @@ function configure_networking_wireguard {
         Q_ML2_PLUGIN_MECHANISM_DRIVERS='wireguard'
     else
         if [[ ! $Q_ML2_PLUGIN_MECHANISM_DRIVERS =~ $(echo '\<wireguard\>') ]]; then
-            Q_ML2_PLUGIN_MECHANISM_DRIVERS+=',wireguard'
+            # IMPORTANT: This will run wireguard before the openvswitch or linuxbridge mechanism drivers
+            Q_ML2_PLUGIN_MECHANISM_DRIVERS="wireguard,$Q_ML2_PLUGIN_MECHANISM_DRIVERS"
         fi
     fi
 
