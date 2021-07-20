@@ -37,6 +37,37 @@ enable_plugin networking-wireguard https://github.com/ChameleonCloud/networking-
 WG_HUB_IP=$HOST_IP
 ```
 
+
+## Architecture
+
+This plugin runs in two components, a mechanism driver on the neutron-server instance, and a separate wireguard-agent that runs on the networking node. It may be the case that neutron-server and the wireguard-agent run on the same system.
+
+The mechanism driver is responisble for validating data, updating the neutron database, and communicating with the agent via RPC. The agent actually executes the commands that change system networking state, e.g. creating namespaces, configuring interfaces, and so on.
+
+## Expected Input
+
+This plugin will act on `port_create`, `port_update`, `port_delete`, and `bind_port` actions.
+
+The port object must have the following attributes set:
+- binding:device_owner: channel:wireguard:hub
+- binding:vif_type: wireguard
+- binding:vif_details:
+  - wg_pubkey: "public_key" of peer (optional)
+  - wg_endpoint: "ip_address:port" of peer (optional)
+
+or
+
+- binding:device_owner: channel:wireguard:spoke
+- binding:vif_type: wireguard
+- binding:vif_details:
+  - wg_pubkey: "public_key" of hub port (mandatory)
+  - wg_endpoint: "ip_address:port" of hub port (mandatory)
+
+
+## Testing
+
+
+
 ## Design Goals
 
 ### ML2

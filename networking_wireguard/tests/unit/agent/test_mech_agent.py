@@ -5,8 +5,10 @@ from neutron_lib.plugins.ml2 import api
 from oslo_config import cfg
 
 import networking_wireguard.constants as wg_const
-from networking_wireguard.ml2 import utils, wg
-from networking_wireguard.ml2.driver import WireguardMechanismDriver as mech_driver
+from networking_wireguard.ml2.agent import utils, wg
+from networking_wireguard.ml2.driver import (
+    WireguardMechanismDriver as mech_driver,
+)
 
 
 class TestWGMechanismDriverBase(TestMl2PortsV2):
