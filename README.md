@@ -66,6 +66,15 @@ or
 
 ## Testing
 
+The `.vscode` folder includes debugger configurations. After brining up devstack via `../devstack/stack.sh`, the debuggers should be usable.
+
+Neutron: q-svc will run the neutron-server process in the debugger.
+Make sure you run `systemctl stop devstack@q-svc.service` before launching the debugger.
+
+networking-wireguard-agent will run the wireguard agent in the debugger.
+make sure you kill the existing process before running the debugger.
+
+The script `./devstack/testcopy.sh` will run `openstack port create` with suitable arguments, print the port info, then run `openstack port delete` to clean up.
 
 
 ## Design Goals
