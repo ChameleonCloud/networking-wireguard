@@ -112,8 +112,7 @@ class WireguardMechanismDriver(mech_agent.SimpleAgentMechanismDriverBase):
 
     def update_port_precommit(self, context: api.PortContext) -> None:
         LOG.debug(f"Entered WG update port precommit")
-        self._insert_provisioning_block(context)
-        # super().update_port_precommit(context)
+        super().update_port_precommit(context)
 
     def update_port_postcommit(self, context) -> None:
         LOG.debug(f"Entered WG update port postcommit")

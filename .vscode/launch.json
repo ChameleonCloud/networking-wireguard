@@ -9,8 +9,17 @@
       "type": "python",
       "request": "launch",
       "program": "${file}",
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "gevent": true
     },
+    {
+      "name": "Debug Tests",
+      "type": "python",
+      "request": "test",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "gevent": true,
+  }
     {
       "name": "Neutron: q-svc",
       "type": "python",

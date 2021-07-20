@@ -1,5 +1,12 @@
+import eventlet
+
+eventlet.monkey_patch()
+
 from neutron.tests.unit import fake_resources as fakes
-from neutron.tests.unit.plugins.ml2.test_plugin import TestMl2PortsV2
+from neutron.tests.unit.plugins.ml2.test_plugin import (
+    Ml2PluginV2TestCase,
+    TestMl2PortsV2,
+)
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.plugins.ml2 import api
 from oslo_config import cfg
@@ -11,7 +18,7 @@ from networking_wireguard.ml2.mech_driver.driver import (
 )
 
 
-class TestWGMechanismDriverBase(TestMl2PortsV2):
+class TestWGMechanismDriverBase(Ml2PluginV2TestCase):
 
     _mechanism_drivers = ["logger", "wireguard"]
 
@@ -36,32 +43,28 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
 
         self.mech_driver = mech_driver()
 
-    def _gen_fake_portContext(self, vif_details=None):
-
-        fake_port = self._gen_fake_port(vif_details=vif_details)
-        fake_segment = fakes.FakeSegment.create_one_segment()
-        fake_segments = [fake_segment]
-        fake_context = fakes.FakePortContext(
-            port=fake_port, host=self.FAKE_HOST, segments_to_bind=fake_segments
-        )
-        return fake_context
-
     def test_wg_mech_port_create(self):
 
         port_dict = {
             wg_const.DEVICE_OWNER_KEY: wg_const.DEVICE_OWNER_WG_HUB,
-            portbindings.VIF_TYPE: wg_const.VIF_TYPE_WG,
+            # portbindings.VIF_TYPE: wg_const.VIF_TYPE_WG,
             portbindings.VIF_DETAILS: {
                 wg_const.WG_PUBKEY_KEY: self.fake_wg_pubkey,
                 wg_const.WG_ENDPOINT_KEY: self.fake_endpoint,
             },
         }
 
-        port = fakes.FakePort.create_one_port(port_dict)
+        fake_port = fakes.FakePort.create_one_port(port_dict)
+        fake_segment = fakes.FakeSegment.create_one_segment()
+        fake_segments = [fake_segment]
+        fake_context = fakes.FakePortContext(
+            port=fake_port, host=self.FAKE_HOST, segments_to_bind=fake_segments
+        )
 
-        fake_context = self._gen_fake_portContext()
         self.mech_driver.initialize()
         self.mech_driver.create_port_precommit(context=fake_context)  # type: ignore
+        self.mech_driver.update_port_precommit(context=fake_context)  # type: ignore
+        self.mech_driver.delete_port_precommit(context=fake_context)  # type: ignore
 
     # def test_wg_mech_port_hub(self):
 
