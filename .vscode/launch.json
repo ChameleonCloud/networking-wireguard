@@ -19,7 +19,7 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "gevent": true,
-  }
+    },
     {
       "name": "Neutron: q-svc",
       "type": "python",
