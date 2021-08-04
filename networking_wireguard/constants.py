@@ -4,6 +4,7 @@ WG_DEVICE_PREFIX = "wg-"
 WG_NAMESPACE_PREFIX = "tun-"
 WG_HUB_PORT_RANGE = (51820, 52820)
 
+IP_LINK_KIND = "wireguard"
 
 # used in "device_owner", following format from neutron_lib.constants
 DEVICE_OWNER_CHANNEL_PREFIX = "channel:"

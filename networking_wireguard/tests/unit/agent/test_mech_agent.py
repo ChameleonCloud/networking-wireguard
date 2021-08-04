@@ -95,8 +95,7 @@ class TestWGMechanismDriverBase(TestMl2PortsV2):
         self.assertEqual(self.fake_endpoint, wg_spokeport.endpoint)
 
     def test_wg_find_free_port(self):
-
-        free_port = utils.find_free_port(self.FAKE_HOST)
+        free_port = utils.find_free_port()
         self.assertIn(free_port, wg_const.WG_HUB_PORT_RANGE)
 
     def test_wg_privkey(self):

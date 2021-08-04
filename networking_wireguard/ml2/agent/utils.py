@@ -65,14 +65,13 @@ def save_file(path, data):
         f.write(data)
 
 
-def find_free_port(ip_address, port_range=WG_HUB_PORT_RANGE):
+def find_free_port(port_range=WG_HUB_PORT_RANGE):
     """Get free port in range."""
-    port = min(port_range)
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        while port in port_range:
+        for port in range(*port_range):
             try:
-                s.bind((ip_address, port))
+                s.bind(("", port))
                 return port
             except OSError:
-                port += 1
+                pass
         raise IOError("no free ports")
