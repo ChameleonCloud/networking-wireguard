@@ -2,4 +2,4 @@ neutron
 neutron_lib
 pyroute2
 oslo_log
-wireguard
+wgconfig

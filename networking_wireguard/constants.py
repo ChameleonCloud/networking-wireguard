@@ -25,3 +25,5 @@ VIF_TYPE_WG = "wireguard"
 WG_PUBKEY_KEY = "wg_pubkey"
 WG_ENDPOINT_KEY = "wg_endpoint"
 VIF_DETAILS_WG_PEERS = "wg_peers"
+
+RPC_TOPIC = "q-wireguard"

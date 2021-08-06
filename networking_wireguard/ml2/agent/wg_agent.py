@@ -2,9 +2,7 @@ import collections
 import contextlib
 import sys
 import time
-import uuid
 
-from neutron.agent.linux import ip_lib
 from neutron.agent import rpc as agent_rpc
 from neutron.common import config as common_config
 from neutron.conf.agent import common as agent_config
@@ -16,9 +14,10 @@ from neutron_lib.agent import constants as agent_consts
 from neutron_lib import constants
 from neutron_lib import context
 from neutron_lib.agent import topics
-from neutron_lib.plugins.utils import get_interface_name
+from neutron_lib import rpc as n_rpc
 from oslo_config import cfg
 from oslo_log import log as logging
+import oslo_messaging
 from oslo_service import loopingcall
 from oslo_service import service
 from oslo_utils import excutils
@@ -75,7 +74,11 @@ class WireguardAgent(service.Service):
             heartbeat.start(interval=report_interval)
 
         for port in self._get_current_ports():
-            self._update_network_ports(port["network_id"], port["id"])
+            self._update_network_ports(
+                port["network_id"],
+                port["id"],
+                wg.get_device_name(port["id"])
+            )
         registry.publish(self.agent_type, events.AFTER_INIT, self)
         # The initialization is complete; we can start receiving messages
         self.connection.consume_in_threads()
@@ -193,8 +196,27 @@ class WireguardAgent(service.Service):
             if 'port_id' in device_details:
                 LOG.info("Port %(device)s updated. Details: %(details)s",
                          {'device': device, 'details': device_details})
+
+                binding_profile = device_details["profile"]
+                peers = []
+                for peer in binding_profile.get("peers", []):
+                    try:
+                        pubkey, endpoint, allowed_ips = peer.split("|")
+                        allowed_ips = allowed_ips.split(",")
+                        peers.append({
+                            "public_key": pubkey,
+                            "endpoint": endpoint or None,
+                            "allowed_ips": allowed_ips,
+                        })
+                    except ValueError:
+                        LOG.warning(
+                            "Peer %s for port %s is malformed, ignoring.",
+                            peer, device)
+                        continue
+
+                wg.sync_device(device, peers=peers)
                 interface_plugged = wg.plug_device(device)
-                # _plug_interface(network_id, device, device_details['device_owner'])
+
                 # update plugin about port status if admin_state is up
                 if device_details['admin_state_up']:
                     if interface_plugged:
@@ -213,7 +235,17 @@ class WireguardAgent(service.Service):
             elif constants.NO_ACTIVE_BINDING in device_details:
                 LOG.info("Device %s has no active binding in host", device)
             else:
-                LOG.info("Device %s not defined on plugin", device)
+                LOG.info(
+                    "Device %s not defined on plugin, will attempt to clean",
+                    device
+                )
+                try:
+                    wg.cleanup_device(device)
+                    LOG.info("Removed %s", device)
+                except Exception as exc:
+                    LOG.warning(
+                        "Failed to clean up orphan device %s: %s", device, exc)
+
 
     @contextlib.contextmanager
     def _ignore_missing_device_exceptions(self, device):
@@ -228,7 +260,7 @@ class WireguardAgent(service.Service):
     def treat_devices_removed(self, devices):
         resync = False
         for device in devices:
-            LOG.info("Attachment %s removed", device)
+            LOG.info("Device %s removed", device)
             details = None
             try:
                 details = self.plugin_rpc.update_device_down(self.context,
@@ -239,19 +271,10 @@ class WireguardAgent(service.Service):
                 LOG.exception("Error occurred while removing port %s",
                               device)
                 resync = True
-            if details and details['exists']:
-                LOG.info("Port %s updated.", device)
-            else:
-                LOG.debug("Device %s not defined on plugin", device)
-            port_id = self._clean_network_ports(device)
-            try:
-                self.ext_manager.delete_port(self.context,
-                                             {'device': device,
-                                              'port_id': port_id})
-            except Exception:
-                LOG.exception("Error occurred while processing extensions "
-                              "for port removal %s", device)
-                resync = True
+            # NOTE(jason): At this point, there is not much else we can do.
+            # The agent will request the port be marked DOWN. We could attempt
+            # to re-create hub ports based on the stored binding_profile, if
+            # we have one.
         return resync
 
     @staticmethod
@@ -362,6 +385,7 @@ class WireguardAgent(service.Service):
 class WireguardAgentCallbacks(object):
     def __init__(self):
         self.updated_devices = set()
+        self.driver_rpc = WireguardPluginApi()
 
     def get_and_clear_updated_devices(self):
         """Get and clear the list of devices for which a update was received.
@@ -380,9 +404,7 @@ class WireguardAgentCallbacks(object):
     def port_update(self, context, **kwargs):
         port_id = kwargs["port"]["id"]
         # device_name = self.agent.mgr.get_tap_device_name(port_id)
-        device_name = get_interface_name(
-            port_id, prefix=wg_const.WG_DEVICE_PREFIX
-        )
+        device_name = wg.get_device_name(port_id)
         # Put the device name in the updated_devices set.
         # Do not store port details, as if they're used for processing
         # notifications ther
@@ -398,17 +420,54 @@ class WireguardAgentCallbacks(object):
             return
         device_owner = port.get("device_owner", "")
         if device_owner == wg_const.DEVICE_OWNER_WG_HUB:
-            device = wg.create_device_from_port(port)
+            device, endpoint, public_key = wg.create_device_from_port(port)
+            self.driver_rpc.update_hub_port(
+                port["id"], endpoint=endpoint, public_key=public_key)
             self.updated_devices.add(device)
         elif device_owner == wg_const.DEVICE_OWNER_WG_SPOKE:
-            # TODO implement spoke behavior
-            return
+            self.driver_rpc.add_hub_peer(port)
 
     def port_delete(self, context, **kwargs):
         port_id = kwargs["port_id"]
         device = wg.cleanup_device_for_port(port_id)
         self.updated_devices.discard(device)
         LOG.debug("port_delete RPC received for port: %s", port_id)
+
+
+class WireguardPluginApi(object):
+    """Agent side of the Wireguard rpc API.
+
+    API version history:
+        1.0 - Initial version.
+    """
+
+    def __init__(self):
+        target = oslo_messaging.Target(
+                topic=wg_const.RPC_TOPIC,
+                version='1.0')
+        self.client = n_rpc.get_client(target)
+
+    @property
+    def context(self):
+        # TODO(kevinbenton): the context should really be passed in to each of
+        # these methods so a call can be tracked all of the way through the
+        # system but that will require a larger refactor to pass the context
+        # everywhere. We just generate a new one here on each call so requests
+        # can be independently tracked server side.
+        return context.get_admin_context_without_session()
+
+    def get_hub_port(self, network_id=None):
+        cctxt = self.client.prepare(version='1.0')
+        return cctxt.call(self.context, 'get_hub_port', network_id=network_id)
+
+    def update_hub_port(self, port_id, endpoint=None, public_key=None):
+        cctxt = self.client.prepare(version='1.0')
+        return cctxt.call(self.context, 'update_hub_port', port_id=port_id,
+            endpoint=endpoint, public_key=public_key)
+
+    def add_hub_peer(self, peer_port=None):
+        cctxt = self.client.prepare(version='1.0')
+        return cctxt.call(self.context, 'add_hub_peer', peer_port=peer_port)
 
 
 def main():

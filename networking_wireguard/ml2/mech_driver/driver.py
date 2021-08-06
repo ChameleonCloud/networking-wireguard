@@ -1,14 +1,14 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
-
-from collections.abc import Mapping
 from functools import partial
 
-from neutron.db import provisioning_blocks
+from neutron_lib.api.definitions import portbindings
+from networking_wireguard.ml2.mech_driver.rpc import WireguardRpcCallback
+
 from neutron.plugins.ml2.drivers import mech_agent
 from neutron_lib import constants
 from neutron_lib.agent import topics
-from neutron_lib.callbacks import resources
 from neutron_lib.plugins.ml2 import api
+from neutron_lib import rpc as n_rpc
 from neutron.plugins.ml2 import rpc
 from neutron.plugins.ml2 import plugin
 from neutron_lib.plugins.utils import get_interface_name
@@ -44,10 +44,23 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
             agent_type=wg_const.AGENT_TYPE_WG
         )
         self.notifier = rpc.AgentNotifierApi(topics.AGENT)
+        self.rpc_callbacks = WireguardRpcCallback()
 
-    def _should_handle(self, port):
+    def initialize(self):
+        self._setup_rpc()
+
+    def _setup_rpc(self):
+        self.conn = n_rpc.Connection()
+        self.conn.create_consumer(
+            wg_const.RPC_TOPIC,
+            [self.rpc_callbacks],
+            fanout=False
+        )
+        return self.conn.consume_in_threads()
+
+    def _has_owner(self, port, owner):
         device_owner = port.get("device_owner", "")
-        return device_owner.startswith(wg_const.DEVICE_OWNER_CHANNEL_PREFIX)
+        return device_owner.startswith(owner)
 
     def try_to_bind_segment_for_agent(
         self, context: api.PortContext, segment, agent
@@ -73,7 +86,7 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
 
         port = context.current
 
-        if not self._should_handle(port):
+        if not self._has_owner(port, wg_const.DEVICE_OWNER_CHANNEL_PREFIX):
             return False
 
         device_name = get_interface_name(
@@ -88,6 +101,31 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
             status=constants.PORT_STATUS_DOWN,
         )
 
+        return True
+
+    def create_port_precommit(self, context: api.PortContext) -> None:
+        super().create_port_precommit(context)
+
+        port = context.current
+
+        if self._has_owner(port, wg_const.DEVICE_OWNER_WG_HUB) and not context.host:
+            raise ValueError("A host must be specified for a hub port")
+
+    def create_port_postcommit(self, context):
+        super().create_port_postcommit(context)
+
+        port = context.current
+        binding_host = context.host
+
+        if not binding_host:
+            hub_port = self.rpc_callbacks.get_hub_port(
+                context._plugin_context, port["network_id"])
+            if not hub_port:
+                # Not much we can do; the spoke port will still be used to
+                # automatically configure the hub w/ peers when it is created.
+                return
+            binding_host = hub_port[portbindings.HOST_ID]
+
         # Neutron will not notify agents on port create. We manually
         # send a notification so the WG agent can pick up the event
         # and create the interface.
@@ -97,15 +135,5 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
             context._plugin_context,
             'port_create',
             port=port,
-            host=context.host
+            host=binding_host
         )
-
-        return True
-
-    def create_port_precommit(self, context: api.PortContext) -> None:
-        super().create_port_precommit(context)
-
-        port = context.current
-
-        if self._should_handle(port) and not context.host:
-            raise ValueError("A host must be specified for a WireGuard port")

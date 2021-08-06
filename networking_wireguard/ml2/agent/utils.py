@@ -46,28 +46,31 @@ def gen_pubkey(privkey: str) -> str:
     return pubkey
 
 
-def save_file(path, data):
-    """Wrapper to save a file.
+def find_free_port(port_range=WG_HUB_PORT_RANGE, protocol="udp"):
+    """Get free port in range.
 
-    Ensure path exists, and set some permissions on the file.
-    Returns path to the saved file.
+    Args:
+        port_range (tuple[int,int]): a port range to try. The ports will be
+            tried subsequently in order.
+        protocol (str): the protocol to ensure the port can communicate on.
+            Defaults to "udp", but "tcp" is also valid. Wireguard uses UDP/
+            datagrams, hence the default.
+
+    Returns:
+        A free port in the range, if found.
+
+    Raises:
+        ValueError: if an invalid protocol is requested.
+        IOError: if no free ports are found for the protocol/range.
     """
+    if protocol == "tcp":
+        socket_type = socket.SOCK_STREAM
+    elif protocol == "udp":
+        socket_type = socket.SOCK_DGRAM
+    else:
+        raise ValueError(f"Invalid protocol: {protocol}")
 
-    # ensure path exists
-    dirname = os.path.dirname(path)
-    os.makedirs(dirname, exist_ok=True)
-
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    # owner read/write only
-    mode = 0o600
-    file_fd = os.open(path, flags, mode)
-    with open(file_fd, "w+") as f:
-        f.write(data)
-
-
-def find_free_port(port_range=WG_HUB_PORT_RANGE):
-    """Get free port in range."""
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+    with closing(socket.socket(socket.AF_INET, socket_type)) as s:
         for port in range(*port_range):
             try:
                 s.bind(("", port))
