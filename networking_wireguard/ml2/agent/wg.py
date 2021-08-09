@@ -98,7 +98,10 @@ def create_device_from_port(port):
 def sync_device(device, peers=None):
     conf_file = _device_config_file(device)
     wc = wgconfig.WGConfig(conf_file)
-    wc.read_file()
+    try:
+        wc.read_file()
+    except FileNotFoundError:
+        return
     new_peers = {
         peer["public_key"]: ",".join(peer["allowed_ips"])
         for peer in peers
