@@ -235,6 +235,13 @@ class WireguardAgent(service.Service):
             elif constants.NO_ACTIVE_BINDING in device_details:
                 LOG.info("Device %s has no active binding in host", device)
             else:
+                if device in cfg.CONF.wireguard.ignored_devices:
+                    LOG.debug((
+                        "Not cleaning up %s as it is defined in "
+                        "ignored_devices"
+                    ), device)
+                    return
+
                 LOG.info(
                     "Device %s not defined on plugin, will attempt to clean",
                     device
@@ -476,6 +483,20 @@ def main():
     agent_config.setup_privsep()
     agent_config.register_agent_state_opts_helper(cfg.CONF)
     cagt_config.register_agent_opts(cfg.CONF)
+
+    wireguard_opts = [
+        cfg.ListOpt('ignored_devices',
+            # Default to ignoring first 10 wg interfaces following stock
+            # naming convention; we can assume these were configured externally.
+            default=[f"wg{i}" for i in range(0, 10)],
+            help=("List of WireGuard devices to be ignored (and thus not "
+                  "managed) by this agent. This can be useful if some devices "
+                  "have been statically configured and should not be modified. "
+                  "By default the agent will attempt to sync detected devices "
+                  "to the list of known Neutron ports, and will delete "
+                  "orphaned devices."))
+    ]
+    cfg.CONF.register_opts(wireguard_opts, "wireguard")
 
     polling_interval = cfg.CONF.AGENT.polling_interval
     quitting_rpc_timeout = cfg.CONF.AGENT.quitting_rpc_timeout
