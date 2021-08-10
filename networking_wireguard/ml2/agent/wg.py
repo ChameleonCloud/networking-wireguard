@@ -74,14 +74,16 @@ def create_device_from_port(port):
                     "private-key",
                     privkey_file.name,
                 ],
-                privsep_exec=True,
+                run_as_root=True,
+                # privsep_exec=True,
             )
 
         with open(_device_config_file(device), "w") as file:
             file.write(
                 netns.netns.execute(
                     ["wg", "showconf", device],
-                    privsep_exec=True
+                    run_as_root=True,
+                    # privsep_exec=True,
                 )
             )
             LOG.info(f"Wrote configuration for {device} to {file.name}")
@@ -142,7 +144,8 @@ def sync_device(device, peers=None):
                         device,
                         conf_file
                     ],
-                    privsep_exec=True,
+                    run_as_root=True,
+                    # privsep_exec=True,
                 )
             except n_exc.ProcessExecutionError as exc:
                 LOG.error("Failed to sync device %s: %s", device, exc)
