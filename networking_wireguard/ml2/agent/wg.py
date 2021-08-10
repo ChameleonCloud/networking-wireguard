@@ -64,6 +64,8 @@ def create_device_from_port(port):
 
         with tempfile.NamedTemporaryFile("w") as privkey_file:
             privkey_file.write(privkey)
+            # Immediately flush; we need to reference it in the following cmd
+            privkey_file.flush()
             netns.netns.execute(
                 [
                     "wg",
