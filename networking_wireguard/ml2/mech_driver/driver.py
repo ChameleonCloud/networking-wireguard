@@ -137,3 +137,17 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
             port=port,
             host=binding_host
         )
+
+    def delete_port_postcommit(self, context):
+        super().delete_port_postcommit(context)
+        port = context.current
+        device_owner = port.get("device_owner", "")
+        if device_owner == wg_const.DEVICE_OWNER_WG_SPOKE:
+            self.rpc_callbacks.remove_hub_peer(port)
+
+    def update_port_postcommit(self, context):
+        super().update_port_postcommit(context)
+        port = context.current
+        device_owner = port.get("device_owner", "")
+        if device_owner == wg_const.DEVICE_OWNER_WG_SPOKE:
+            self.rpc_callbacks.update_hub_peer(port, orig=context.original)
