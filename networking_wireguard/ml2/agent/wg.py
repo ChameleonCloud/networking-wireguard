@@ -26,12 +26,17 @@ CONFIG_DIR = "/etc/neutron/plugins/wireguard/"
 def get_all_devices():
     """Find all WireGuard devices in all network namespaces."""
     devices = set()
-    for netns in ip_lib.list_network_namespaces():
-        for device_info in ip_lib.get_devices_info(netns):
-            if device_info.get("kind") == IP_LINK_KIND and device_info[
-                "name"
-            ].startswith(WG_DEVICE_PREFIX):
-                devices.add(device_info["name"])
+    namespaces = list(ip_lib.list_network_namespaces())
+    namespaces.append(None)  # Also check root namespace
+    for netns in namespaces:
+        devices.update(
+            [
+                dev["name"]
+                for dev in ip_lib.get_devices_info(netns)
+                if dev.get("kind") == IP_LINK_KIND
+                and dev["name"].startswith(WG_DEVICE_PREFIX)
+            ]
+        )
     return devices
 
 
@@ -143,6 +148,9 @@ def sync_device(device, peers=None):
 
 
 def _get_device_netns(device):
+    host = ip_lib.IPWrapper()
+    if host.device(device).exists():
+        return host
     for netns in ip_lib.list_network_namespaces():
         ns = ip_lib.IPWrapper(netns)
         if ns.device(device).exists():
