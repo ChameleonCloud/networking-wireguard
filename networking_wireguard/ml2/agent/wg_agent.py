@@ -32,8 +32,9 @@ LOG = logging.getLogger(__name__)
 
 @profiler.trace_cls("rpc")
 class WireguardAgent(service.Service):
-    def __init__(self, polling_interval,
-                 quitting_rpc_timeout, agent_type, agent_binary):
+    def __init__(
+        self, polling_interval, quitting_rpc_timeout, agent_type, agent_binary
+    ):
         """Constructor.
 
         :param manager: the manager object containing the impl specifics
@@ -59,25 +60,24 @@ class WireguardAgent(service.Service):
 
         self.failed_report_state = False
         self.agent_state = {
-            'binary': self.agent_binary,
-            'host': cfg.CONF.host,
-            'topic': constants.L2_AGENT_TOPIC,
-            'agent_type': self.agent_type,
-            'start_flag': True,
-            'configurations': {},
+            "binary": self.agent_binary,
+            "host": cfg.CONF.host,
+            "topic": constants.L2_AGENT_TOPIC,
+            "agent_type": self.agent_type,
+            "start_flag": True,
+            "configurations": {},
         }
 
         report_interval = cfg.CONF.AGENT.report_interval
         if report_interval:
             heartbeat = loopingcall.FixedIntervalLoopingCall(
-                self._report_state)
+                self._report_state
+            )
             heartbeat.start(interval=report_interval)
 
         for port in self._get_current_ports():
             self._update_network_ports(
-                port["network_id"],
-                port["id"],
-                wg.get_device_name(port["id"])
+                port["network_id"], port["id"], wg.get_device_name(port["id"])
             )
         registry.publish(self.agent_type, events.AFTER_INIT, self)
         # The initialization is complete; we can start receiving messages
@@ -97,18 +97,19 @@ class WireguardAgent(service.Service):
     def _report_state(self):
         try:
             devices = len(wg.get_all_devices())
-            self.agent_state.get('configurations')['devices'] = devices
-            agent_status = self.state_rpc.report_state(self.context,
-                                                       self.agent_state,
-                                                       True)
+            self.agent_state.get("configurations")["devices"] = devices
+            agent_status = self.state_rpc.report_state(
+                self.context, self.agent_state, True
+            )
             if agent_status == agent_consts.AGENT_REVIVED:
-                LOG.info('%s Agent has just been revived. '
-                         'Doing a full sync.',
-                         self.agent_type)
+                LOG.info(
+                    "%s Agent has just been revived. " "Doing a full sync.",
+                    self.agent_type,
+                )
                 self.fullsync = True
             # we only want to update resource versions on startup
-            self.agent_state.pop('resource_versions', None)
-            self.agent_state.pop('start_flag', None)
+            self.agent_state.pop("resource_versions", None)
+            self.agent_state.pop("start_flag", None)
         except Exception:
             self.failed_report_state = True
             LOG.exception("Failed reporting state!")
@@ -133,27 +134,23 @@ class WireguardAgent(service.Service):
             (topics.PORT, topics.DELETE),  # port_delete
         ]
         return agent_rpc.create_consumers(
-            endpoints,
-            self.topic,
-            consumers,
-            start_listening=False
+            endpoints, self.topic, consumers, start_listening=False
         )
 
     def _clean_network_ports(self, device):
         for netid, ports_list in self.network_ports.items():
             for port_data in ports_list:
-                if device == port_data['device']:
+                if device == port_data["device"]:
                     ports_list.remove(port_data)
                     if ports_list == []:
                         self.network_ports.pop(netid)
-                    return port_data['port_id']
+                    return port_data["port_id"]
 
     def _update_network_ports(self, network_id, port_id, device):
         self._clean_network_ports(device)
-        self.network_ports[network_id].append({
-            "port_id": port_id,
-            "device": device
-        })
+        self.network_ports[network_id].append(
+            {"port_id": port_id, "device": device}
+        )
 
     def process_network_devices(self, device_info):
         resync_a = False
@@ -162,20 +159,22 @@ class WireguardAgent(service.Service):
         # Updated devices are processed the same as new ones, as their
         # admin_state_up may have changed. The set union prevents duplicating
         # work when a device is new and updated in the same polling iteration.
-        devices_added_updated = (set(device_info.get('added')) |
-                                 set(device_info.get('updated')))
+        devices_added_updated = set(device_info.get("added")) | set(
+            device_info.get("updated")
+        )
         if devices_added_updated:
             resync_a = self.treat_devices_added_updated(devices_added_updated)
 
-        if device_info.get('removed'):
-            resync_b = self.treat_devices_removed(device_info['removed'])
+        if device_info.get("removed"):
+            resync_b = self.treat_devices_removed(device_info["removed"])
         # If one of the above operations fails => resync with plugin
-        return (resync_a | resync_b)
+        return resync_a | resync_b
 
     def treat_devices_added_updated(self, devices):
         try:
             devices_details_list = self.plugin_rpc.get_devices_details_list(
-                self.context, devices, self.agent_id, host=cfg.CONF.host)
+                self.context, devices, self.agent_id, host=cfg.CONF.host
+            )
         except Exception:
             LOG.exception("Unable to get port details for %s", devices)
             # resync is needed
@@ -189,13 +188,15 @@ class WireguardAgent(service.Service):
     def _process_device_if_exists(self, device_details):
         # ignore exceptions from devices that disappear because they will
         # be handled as removed in the next iteration
-        device = device_details['device']
+        device = device_details["device"]
         with self._ignore_missing_device_exceptions(device):
             LOG.debug("Port %s added", device)
 
-            if 'port_id' in device_details:
-                LOG.info("Port %(device)s updated. Details: %(details)s",
-                         {'device': device, 'details': device_details})
+            if "port_id" in device_details:
+                LOG.info(
+                    "Port %(device)s updated. Details: %(details)s",
+                    {"device": device, "details": device_details},
+                )
 
                 binding_profile = device_details["profile"]
                 peers = []
@@ -203,56 +204,89 @@ class WireguardAgent(service.Service):
                     try:
                         pubkey, endpoint, allowed_ips = peer.split("|")
                         allowed_ips = allowed_ips.split(",")
-                        peers.append({
-                            "public_key": pubkey,
-                            "endpoint": endpoint or None,
-                            "allowed_ips": allowed_ips,
-                        })
+                        peers.append(
+                            {
+                                "public_key": pubkey,
+                                "endpoint": endpoint or None,
+                                "allowed_ips": allowed_ips,
+                            }
+                        )
                     except ValueError:
                         LOG.warning(
                             "Peer %s for port %s is malformed, ignoring.",
-                            peer, device)
+                            peer,
+                            device,
+                        )
                         continue
 
+                flush_addresses = True
+                addresses = []
+                for fixed_ip in device_details["fixed_ips"]:
+                    subnet = self.rpc_callbacks.get_subnet_details(
+                        fixed_ip["subnet_id"]
+                    )
+                    if not subnet:
+                        LOG.error(
+                            (
+                                "Wanted to update subnet address for port %s but subnet "
+                                "%s could not be found in cache"
+                            ),
+                            device_details["port_id"],
+                            fixed_ip["subnet_id"],
+                        )
+                        # it is not safe to flush addresses in this case b/c we failed
+                        # to properly rebuild the list of what they should be.
+                        flush_addresses = False
+                        continue
+                    _, range = subnet["cidr"].split("/")
+                    addresses.append(f"{fixed_ip['ip_address']}/{range}")
+
                 wg.sync_device(device, peers=peers)
-                interface_plugged = wg.plug_device(device)
+                interface_plugged = wg.plug_device(
+                    device,
+                    addresses=addresses,
+                    flush_addresses=flush_addresses,
+                )
 
                 # update plugin about port status if admin_state is up
-                if device_details['admin_state_up']:
+                if device_details["admin_state_up"]:
                     if interface_plugged:
-                        self.plugin_rpc.update_device_up(self.context,
-                                                         device,
-                                                         self.agent_id,
-                                                         cfg.CONF.host)
+                        self.plugin_rpc.update_device_up(
+                            self.context, device, self.agent_id, cfg.CONF.host
+                        )
                     else:
-                        self.plugin_rpc.update_device_down(self.context,
-                                                           device,
-                                                           self.agent_id,
-                                                           cfg.CONF.host)
-                self._update_network_ports(device_details['network_id'],
-                                           device_details['port_id'],
-                                           device_details['device'])
+                        self.plugin_rpc.update_device_down(
+                            self.context, device, self.agent_id, cfg.CONF.host
+                        )
+                self._update_network_ports(
+                    device_details["network_id"],
+                    device_details["port_id"],
+                    device_details["device"],
+                )
             elif constants.NO_ACTIVE_BINDING in device_details:
                 LOG.info("Device %s has no active binding in host", device)
             else:
                 if device in cfg.CONF.wireguard.ignored_devices:
-                    LOG.debug((
-                        "Not cleaning up %s as it is defined in "
-                        "ignored_devices"
-                    ), device)
+                    LOG.debug(
+                        (
+                            "Not cleaning up %s as it is defined in "
+                            "ignored_devices"
+                        ),
+                        device,
+                    )
                     return
 
                 LOG.info(
                     "Device %s not defined on plugin, will attempt to clean",
-                    device
+                    device,
                 )
                 try:
                     wg.cleanup_device(device)
                     LOG.info("Removed %s", device)
                 except Exception as exc:
                     LOG.warning(
-                        "Failed to clean up orphan device %s: %s", device, exc)
-
+                        "Failed to clean up orphan device %s: %s", device, exc
+                    )
 
     @contextlib.contextmanager
     def _ignore_missing_device_exceptions(self, device):
@@ -270,13 +304,11 @@ class WireguardAgent(service.Service):
             LOG.info("Device %s removed", device)
             details = None
             try:
-                details = self.plugin_rpc.update_device_down(self.context,
-                                                             device,
-                                                             self.agent_id,
-                                                             cfg.CONF.host)
+                details = self.plugin_rpc.update_device_down(
+                    self.context, device, self.agent_id, cfg.CONF.host
+                )
             except Exception:
-                LOG.exception("Error occurred while removing port %s",
-                              device)
+                LOG.exception("Error occurred while removing port %s", device)
                 resync = True
             # NOTE(jason): At this point, there is not much else we can do.
             # The agent will request the port be marked DOWN. We could attempt
@@ -291,50 +323,58 @@ class WireguardAgent(service.Service):
         If a device did not have a timestamp previously, it will not be
         returned because this means it is new.
         """
-        return {device for device, timestamp in timestamps.items()
-                if device in previous_timestamps and
-                timestamp != previous_timestamps.get(device)}
+        return {
+            device
+            for device, timestamp in timestamps.items()
+            if device in previous_timestamps
+            and timestamp != previous_timestamps.get(device)
+        }
 
     def scan_devices(self, previous, sync):
         updated_devices = self.rpc_callbacks.get_and_clear_updated_devices()
         current_devices = set(wg.get_all_devices())
-        device_info = {'current': current_devices}
+        device_info = {"current": current_devices}
 
         if previous is None:
             # This is the first iteration of daemon_loop().
-            previous = {'added': set(),
-                        'current': set(),
-                        'updated': set(),
-                        'removed': set(),
-                        'timestamps': {}}
+            previous = {
+                "added": set(),
+                "current": set(),
+                "updated": set(),
+                "removed": set(),
+                "timestamps": {},
+            }
 
         if sync:
             # This is the first iteration, or the previous one had a problem.
             # Re-add all existing devices.
-            device_info['added'] = current_devices
+            device_info["added"] = current_devices
 
             # Retry cleaning devices that may not have been cleaned properly.
             # And clean any that disappeared since the previous iteration.
-            device_info['removed'] = (previous['removed'] |
-                                      previous['current'] -
-                                      current_devices)
+            device_info["removed"] = (
+                previous["removed"] | previous["current"] - current_devices
+            )
 
             # Retry updating devices that may not have been updated properly.
             # And any that were updated since the previous iteration.
             # Only update devices that currently exist.
-            device_info['updated'] = (previous['updated'] | updated_devices &
-                                      current_devices)
+            device_info["updated"] = (
+                previous["updated"] | updated_devices & current_devices
+            )
         else:
-            device_info['added'] = current_devices - previous['current']
-            device_info['removed'] = previous['current'] - current_devices
-            device_info['updated'] = updated_devices & current_devices
+            device_info["added"] = current_devices - previous["current"]
+            device_info["removed"] = previous["current"] - current_devices
+            device_info["updated"] = updated_devices & current_devices
 
         return device_info
 
     def _device_info_has_changes(self, device_info):
-        return (device_info.get('added') or
-                device_info.get('updated') or
-                device_info.get('removed'))
+        return (
+            device_info.get("added")
+            or device_info.get("updated")
+            or device_info.get("removed")
+        )
 
     def daemon_loop(self):
         LOG.info("%s Agent RPC Daemon Started!", self.agent_type)
@@ -349,39 +389,48 @@ class WireguardAgent(service.Service):
                 self.fullsync = False
 
             if sync:
-                LOG.info("%s Agent out of sync with plugin!",
-                         self.agent_type)
+                LOG.info("%s Agent out of sync with plugin!", self.agent_type)
 
-            #port_info = self._get_current_ports()
+            # port_info = self._get_current_ports()
             device_info = self.scan_devices(previous=device_info, sync=sync)
             sync = False
 
-            if (self._device_info_has_changes(device_info)):
+            if self._device_info_has_changes(device_info):
                 LOG.debug("Agent loop found changes! %s", device_info)
                 try:
                     sync = self.process_network_devices(device_info)
                 except Exception:
-                    LOG.exception("Error in agent loop. Devices info: %s",
-                                  device_info)
+                    LOG.exception(
+                        "Error in agent loop. Devices info: %s", device_info
+                    )
                     sync = True
 
             # sleep till end of polling interval
-            elapsed = (time.time() - start)
-            if (elapsed < self.polling_interval):
+            elapsed = time.time() - start
+            if elapsed < self.polling_interval:
                 time.sleep(self.polling_interval - elapsed)
             else:
-                LOG.debug("Loop iteration exceeded interval "
-                          "(%(polling_interval)s vs. %(elapsed)s)!",
-                          {'polling_interval': self.polling_interval,
-                           'elapsed': elapsed})
+                LOG.debug(
+                    "Loop iteration exceeded interval "
+                    "(%(polling_interval)s vs. %(elapsed)s)!",
+                    {
+                        "polling_interval": self.polling_interval,
+                        "elapsed": elapsed,
+                    },
+                )
 
     def _get_current_ports(self):
         all_ports = self.plugin_rpc.get_ports_by_vnic_type_and_host(
-            self.context, portbindings.VNIC_NORMAL, cfg.CONF.host)
+            self.context, portbindings.VNIC_NORMAL, cfg.CONF.host
+        )
         return [
-            port for port in all_ports
-            if (port.get("device_owner", "")
-                .startswith(wg_const.DEVICE_OWNER_CHANNEL_PREFIX))
+            port
+            for port in all_ports
+            if (
+                port.get("device_owner", "").startswith(
+                    wg_const.DEVICE_OWNER_CHANNEL_PREFIX
+                )
+            )
         ]
 
     def set_rpc_timeout(self, timeout):
@@ -392,10 +441,14 @@ class WireguardAgent(service.Service):
 class WireguardAgentCallbacks(object):
     def __init__(self):
         self.updated_devices = set()
+        self.cached_subnets = {}
         self.driver_rpc = WireguardPluginApi()
 
     def get_and_clear_updated_devices(self):
         """Get and clear the list of devices for which a update was received.
+
+        This method, oddly, is NOT actually supposed to be called via RPC; it is
+        intended to be called by the agent loop directly.
 
         :return: set - A set with updated devices. Format is ['tap1', 'tap2']
         """
@@ -408,34 +461,56 @@ class WireguardAgentCallbacks(object):
         self.updated_devices = set()
         return updated_devices
 
+    def get_subnet_details(self, subnet_id):
+        return self.cached_subnets.get(subnet_id)
+
     def port_update(self, context, **kwargs):
-        port_id = kwargs["port"]["id"]
-        # device_name = self.agent.mgr.get_tap_device_name(port_id)
-        device_name = wg.get_device_name(port_id)
-        # Put the device name in the updated_devices set.
-        # Do not store port details, as if they're used for processing
-        # notifications ther
-        # processed in the same order as the relevant API requests.
-        self.updated_devices.add(device_name)
-        LOG.debug("port_update RPC received for port: %s", port_id)
+        port = kwargs.get("port")
+        if not port:
+            return
+
+        # we only really care about updates to the hub port here; the hub port
+        # needs to be synced to the local wireguard interface. spoke port updates
+        # are entirely handled in the postcommit functions in the ml2 layer (not agent)
+        device_owner = port.get("device_owner")
+        if device_owner == wg_const.DEVICE_OWNER_WG_HUB:
+            # to properly set up the wg interface's address (such that routes are
+            # configured on the device) we need to know the subnet CIDRs; this is
+            # annoyingly difficult to get, so we are nice and keep a record of all
+            # subnets we've seen so the agent can reference them.
+            for fixed_ip in port["fixed_ips"]:
+                subnet_id = fixed_ip["subnet_id"]
+                self.cached_subnets[subnet_id] = self.driver_rpc.get_subnet(
+                    subnet_id
+                )
+            # put the device name in the updated_devices set. it is not safe to store
+            # port details here as they could be stale by the time the agent's loop
+            # hits the next iteration.
+            device_name = wg.get_device_name(port["id"])
+            self.updated_devices.add(device_name)
+            LOG.debug("port_update RPC received for port: %s", port["id"])
 
     def port_create(self, context, **kwargs):
         if kwargs.get("host") != cfg.CONF.host:
             return
-        port = kwargs.get("port", None)
+        port = kwargs.get("port")
         if not port:
             return
         device_owner = port.get("device_owner", "")
         if device_owner == wg_const.DEVICE_OWNER_WG_HUB:
-            device, endpoint, public_key = wg.create_device_from_port(port)
+            device, listen_port, public_key = wg.create_device_from_port(port)
+            endpoint = f"{CONF.wireguard.endpoint}:{listen_port}"
             self.driver_rpc.update_hub_port(
-                port["id"], endpoint=endpoint, public_key=public_key)
+                port["id"], endpoint=endpoint, public_key=public_key
+            )
             self.updated_devices.add(device)
         elif device_owner == wg_const.DEVICE_OWNER_WG_SPOKE:
             self.driver_rpc.add_hub_peer(port)
 
     def port_delete(self, context, **kwargs):
         port_id = kwargs["port_id"]
+        # we don't have device_owner here so we always try to delete the port,
+        # but this is ok as we can fail gracefully.
         device = wg.cleanup_device_for_port(port_id)
         self.updated_devices.discard(device)
         LOG.debug("port_delete RPC received for port: %s", port_id)
@@ -446,12 +521,11 @@ class WireguardPluginApi(object):
 
     API version history:
         1.0 - Initial version.
+        1.1 - Add get_subnet
     """
 
     def __init__(self):
-        target = oslo_messaging.Target(
-                topic=wg_const.RPC_TOPIC,
-                version='1.0')
+        target = oslo_messaging.Target(topic=wg_const.RPC_TOPIC, version="1.0")
         self.client = n_rpc.get_client(target)
 
     @property
@@ -464,17 +538,26 @@ class WireguardPluginApi(object):
         return context.get_admin_context_without_session()
 
     def get_hub_port(self, network_id=None):
-        cctxt = self.client.prepare(version='1.0')
-        return cctxt.call(self.context, 'get_hub_port', network_id=network_id)
+        cctxt = self.client.prepare(version="1.0")
+        return cctxt.call(self.context, "get_hub_port", network_id=network_id)
 
     def update_hub_port(self, port_id, endpoint=None, public_key=None):
-        cctxt = self.client.prepare(version='1.0')
-        return cctxt.call(self.context, 'update_hub_port', port_id=port_id,
-            endpoint=endpoint, public_key=public_key)
+        cctxt = self.client.prepare(version="1.0")
+        return cctxt.call(
+            self.context,
+            "update_hub_port",
+            port_id=port_id,
+            endpoint=endpoint,
+            public_key=public_key,
+        )
 
     def add_hub_peer(self, peer_port=None):
-        cctxt = self.client.prepare(version='1.0')
-        return cctxt.call(self.context, 'add_hub_peer', peer_port=peer_port)
+        cctxt = self.client.prepare(version="1.0")
+        return cctxt.call(self.context, "add_hub_peer", peer_port=peer_port)
+
+    def get_subnet(self, subnet_id):
+        cctxt = self.client.prepare(version="1.1")
+        return cctxt.call(self.context, "get_subnet", subnet_id=subnet_id)
 
 
 def main():
@@ -485,16 +568,27 @@ def main():
     cagt_config.register_agent_opts(cfg.CONF)
 
     wireguard_opts = [
-        cfg.ListOpt('ignored_devices',
+        cfg.ListOpt(
+            "ignored_devices",
             # Default to ignoring first 10 wg interfaces following stock
             # naming convention; we can assume these were configured externally.
             default=[f"wg{i}" for i in range(0, 10)],
-            help=("List of WireGuard devices to be ignored (and thus not "
-                  "managed) by this agent. This can be useful if some devices "
-                  "have been statically configured and should not be modified. "
-                  "By default the agent will attempt to sync detected devices "
-                  "to the list of known Neutron ports, and will delete "
-                  "orphaned devices."))
+            help=(
+                "List of WireGuard devices to be ignored (and thus not "
+                "managed) by this agent. This can be useful if some devices "
+                "have been statically configured and should not be modified. "
+                "By default the agent will attempt to sync detected devices "
+                "to the list of known Neutron ports, and will delete "
+                "orphaned devices."
+            ),
+        ),
+        cfg.StrOpt(
+            "endpoint",
+            help=(
+                "Public endpoint for peers. This is the IP address that peers can "
+                "use to connect to the Wireguard interface managed by the agent."
+            ),
+        ),
     ]
     cfg.CONF.register_opts(wireguard_opts, "wireguard")
 
