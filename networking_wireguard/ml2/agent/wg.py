@@ -28,8 +28,9 @@ def get_all_devices():
     devices = set()
     for netns in ip_lib.list_network_namespaces():
         for device_info in ip_lib.get_devices_info(netns):
-            if (device_info.get("kind") == IP_LINK_KIND and
-                device_info["name"].startswith(WG_DEVICE_PREFIX)):
+            if device_info.get("kind") == IP_LINK_KIND and device_info[
+                "name"
+            ].startswith(WG_DEVICE_PREFIX):
                 devices.add(device_info["name"])
     return devices
 
@@ -53,15 +54,11 @@ def create_device_from_port(port):
     netns = ip_lib.IPWrapper().ensure_namespace(_get_netns_name(port))
     ip_dev.link.set_netns(netns.namespace)
 
-    ip = _get_bind_address(port)
     listen_port = utils.find_free_port()
     privkey = utils.gen_privkey()
     pubkey = utils.gen_pubkey(privkey)
 
     try:
-        # TODO get cidr for bind ip
-        ip_dev.addr.add(ip)
-
         with tempfile.NamedTemporaryFile("w") as privkey_file:
             privkey_file.write(privkey)
             # Immediately flush; we need to reference it in the following cmd
@@ -95,8 +92,7 @@ def create_device_from_port(port):
         cleanup_device_for_port(port["id"])
         raise
 
-    endpoint = f"{ip}:{listen_port}"
-    return device, endpoint, pubkey
+    return device, listen_port, pubkey
 
 
 def sync_device(device, peers=None):
@@ -107,28 +103,26 @@ def sync_device(device, peers=None):
     except FileNotFoundError:
         return
     new_peers = {
-        peer["public_key"]: ",".join(peer["allowed_ips"])
-        for peer in peers
+        peer["public_key"]: ",".join(peer["allowed_ips"]) for peer in peers
     }
     old_peers = {
-        peer: peer_conf["AllowedIPs"]
-        for peer, peer_conf in wc.peers.items()
+        peer: peer_conf["AllowedIPs"] for peer, peer_conf in wc.peers.items()
     }
 
     new_peer_keys = set(new_peers.keys())
     old_peer_keys = set(old_peers.keys())
     changes = False
 
-    for peer in (new_peer_keys - old_peer_keys):
+    for peer in new_peer_keys - old_peer_keys:
         wc.add_peer(peer)
         wc.add_attr(peer, "AllowedIPs", new_peers[peer])
         changes = True
 
-    for peer in (old_peer_keys - new_peer_keys):
+    for peer in old_peer_keys - new_peer_keys:
         wc.del_peer(peer)
         changes = True
 
-    for peer in (new_peer_keys & old_peer_keys):
+    for peer in new_peer_keys & old_peer_keys:
         if new_peers[peer] != old_peers[peer]:
             wc.del_attr(peer, "AllowedIPs")
             wc.add_attr(peer, "AllowedIPs", new_peers[peer])
@@ -140,12 +134,7 @@ def sync_device(device, peers=None):
         if netns:
             try:
                 netns.netns.execute(
-                    [
-                        "wg",
-                        "syncconf",
-                        device,
-                        conf_file
-                    ],
+                    ["wg", "syncconf", device, conf_file],
                     run_as_root=True,
                     # privsep_exec=True,
                 )
@@ -161,7 +150,7 @@ def _get_device_netns(device):
     return None
 
 
-def plug_device(device):
+def plug_device(device, addresses=[], flush_addresses=False):
     ns = _get_device_netns(device)
     if not ns:
         return False
@@ -169,6 +158,10 @@ def plug_device(device):
         ns_dev = ns.device(device)
         if ns_dev.link.state != "up":
             ns_dev.link.set_up()
+        if flush_addresses:
+            ns_dev.addr.flush(4)
+        for addr in addresses:
+            ns_dev.addr.add(addr)
         return True
     except pyroute_exc.NetlinkError as exc:
         LOG.error(f"Failed to plug device {device}: {exc}")
@@ -181,16 +174,6 @@ def get_device_name(port_id):
 
 def _get_netns_name(port):
     return f"{WG_NAMESPACE_PREFIX}{port['project_id']}"
-
-
-def _get_bind_address(port):
-    fixed_ips = port.get("fixed_ips")
-    if not fixed_ips:
-        raise ValueError((
-            "No fixed_ips assigned to hub port; a hub port must have at "
-            "least one IP address."))
-    ip = fixed_ips[0].get("ip_address")
-    return ip
 
 
 def _device_config_file(device):
