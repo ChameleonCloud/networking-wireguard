@@ -46,6 +46,16 @@ and communicating with the agent via RPC. The agent actually executes the comman
 change system networking state, e.g. creating namespaces, configuring interfaces, and so
 on.
 
+This plugin introduces two new types of ports to Neutron (as referenced by their
+device_owner field):
+
+- `channel:wireguard:spoke`: represents a Wireguard peer that is external to Neutron.
+- `channel:wireguard:hub`: represents a Wireguard peer that Neutron will manage.
+  Neutron will manage the lifecycle of a Wireguard interface for each port of this type.
+
+The _hub ports_ are used to support connecting multiple _spoke ports_ to eachother, or
+to a wider Neutron network. Spoke ports can have multiple hubs specified.
+
 ## Expected Input
 
 This plugin will act on `port_create`, `port_update`, `port_delete`, and `bind_port`
@@ -56,16 +66,17 @@ The port object must have the following attributes set:
 - binding:device_owner: channel:wireguard:hub
 - binding:vif_type: wireguard
 - binding:vif_details:
-  - wg_pubkey: "public_key" of peer (optional)
-  - wg_endpoint: "ip_address:port" of peer (optional)
+  - wg_pubkey: "public_key" of peer (optional, will be automatically assigned)
+  - wg_endpoint: "ip_address:port" of peer (optional, will be automatically assigned)
 
 or
 
 - binding:device_owner: channel:wireguard:spoke
 - binding:vif_type: wireguard
 - binding:vif_details:
-  - wg_pubkey: "public_key" of hub port (mandatory)
-  - wg_endpoint: "ip_address:port" of hub port (mandatory)
+  - wg_pubkey: "public_key" of peer (mandatory)
+  - wg_endpoint: "ip_address:port" (optional)
+  - hubs: list of hub port IDs
 
 ## Testing
 
