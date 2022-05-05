@@ -186,6 +186,27 @@ class WireguardAgent(service.Service):
         return False
 
     def _process_device_if_exists(self, device_details):
+        """
+        {
+            'device': device,
+            'network_id': port['network_id'],
+            'port_id': port['id'],
+            'mac_address': port['mac_address'],
+            'admin_state_up': port['admin_state_up'],
+            'network_type': segment[api.NETWORK_TYPE],
+            'segmentation_id': segment[api.SEGMENTATION_ID],
+            'physical_network': segment[api.PHYSICAL_NETWORK],
+            'mtu': port_context.network._network.get('mtu'),
+            'fixed_ips': port['fixed_ips'],
+            'device_owner': port['device_owner'],
+            'allowed_address_pairs': port['allowed_address_pairs'],
+            'port_security_enabled': port.get(psec.PORTSECURITY, True),
+            'qos_policy_id': port.get(qos_consts.QOS_POLICY_ID),
+            'network_qos_policy_id': network_qos_policy_id,
+            'profile': port[portbindings.PROFILE],
+            'propagate_uplink_status': port.get(usp.PROPAGATE_UPLINK_STATUS, False)
+        }
+        """
         # ignore exceptions from devices that disappear because they will
         # be handled as removed in the next iteration
         device = device_details["device"]
@@ -302,9 +323,8 @@ class WireguardAgent(service.Service):
         resync = False
         for device in devices:
             LOG.info("Device %s removed", device)
-            details = None
             try:
-                details = self.plugin_rpc.update_device_down(
+                self.plugin_rpc.update_device_down(
                     self.context, device, self.agent_id, cfg.CONF.host
                 )
             except Exception:
@@ -330,8 +350,10 @@ class WireguardAgent(service.Service):
             and timestamp != previous_timestamps.get(device)
         }
 
-    def scan_devices(self, previous, sync):
-        updated_devices = self.rpc_callbacks.get_and_clear_updated_devices()
+    def scan_hub_devices(self, previous, sync):
+        updated_hub_devices = (
+            self.rpc_callbacks.get_and_clear_updated_hub_devices()
+        )
         current_devices = set(wg.get_all_devices())
         device_info = {"current": current_devices}
 
@@ -360,12 +382,12 @@ class WireguardAgent(service.Service):
             # And any that were updated since the previous iteration.
             # Only update devices that currently exist.
             device_info["updated"] = (
-                previous["updated"] | updated_devices & current_devices
+                previous["updated"] | updated_hub_devices & current_devices
             )
         else:
             device_info["added"] = current_devices - previous["current"]
             device_info["removed"] = previous["current"] - current_devices
-            device_info["updated"] = updated_devices & current_devices
+            device_info["updated"] = updated_hub_devices & current_devices
 
         return device_info
 
@@ -391,8 +413,9 @@ class WireguardAgent(service.Service):
             if sync:
                 LOG.info("%s Agent out of sync with plugin!", self.agent_type)
 
-            # port_info = self._get_current_ports()
-            device_info = self.scan_devices(previous=device_info, sync=sync)
+            device_info = self.scan_hub_devices(
+                previous=device_info, sync=sync
+            )
             sync = False
 
             if self._device_info_has_changes(device_info):
@@ -440,11 +463,11 @@ class WireguardAgent(service.Service):
 
 class WireguardAgentCallbacks(object):
     def __init__(self):
-        self.updated_devices = set()
+        self.updated_hub_devices = set()
         self.cached_subnets = {}
         self.driver_rpc = WireguardPluginApi()
 
-    def get_and_clear_updated_devices(self):
+    def get_and_clear_updated_hub_devices(self):
         """Get and clear the list of devices for which a update was received.
 
         This method, oddly, is NOT actually supposed to be called via RPC; it is
@@ -457,9 +480,9 @@ class WireguardAgentCallbacks(object):
         # port_update RPC APIs use.
         # This should be thread-safe as the greenthread should not yield
         # between these two statements.
-        updated_devices = self.updated_devices
-        self.updated_devices = set()
-        return updated_devices
+        updated_hub_devices = self.updated_hub_devices
+        self.updated_hub_devices = set()
+        return updated_hub_devices
 
     def get_subnet_details(self, subnet_id):
         return self.cached_subnets.get(subnet_id)
@@ -487,7 +510,7 @@ class WireguardAgentCallbacks(object):
             # port details here as they could be stale by the time the agent's loop
             # hits the next iteration.
             device_name = wg.get_device_name(port["id"])
-            self.updated_devices.add(device_name)
+            self.updated_hub_devices.add(device_name)
             LOG.debug("port_update RPC received for port: %s", port["id"])
 
     def port_create(self, context, **kwargs):
@@ -503,7 +526,7 @@ class WireguardAgentCallbacks(object):
             self.driver_rpc.update_hub_port(
                 port["id"], endpoint=endpoint, public_key=public_key
             )
-            self.updated_devices.add(device)
+            self.updated_hub_devices.add(device)
         elif device_owner == wg_const.DEVICE_OWNER_WG_SPOKE:
             self.driver_rpc.add_hub_peer(port)
 
@@ -512,7 +535,7 @@ class WireguardAgentCallbacks(object):
         # we don't have device_owner here so we always try to delete the port,
         # but this is ok as we can fail gracefully.
         device = wg.cleanup_device_for_port(port_id)
-        self.updated_devices.discard(device)
+        self.updated_hub_devices.discard(device)
         LOG.debug("port_delete RPC received for port: %s", port_id)
 
 
