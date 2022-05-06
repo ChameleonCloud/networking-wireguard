@@ -61,7 +61,6 @@ def create_device_from_port(port):
 
     listen_port = utils.find_free_port()
     privkey = utils.gen_privkey()
-    pubkey = utils.gen_pubkey(privkey)
 
     try:
         with tempfile.NamedTemporaryFile("w") as privkey_file:
@@ -97,7 +96,7 @@ def create_device_from_port(port):
         cleanup_device_for_port(port["id"])
         raise
 
-    return device, listen_port, pubkey
+    return device
 
 
 def sync_device(device, peers=None):

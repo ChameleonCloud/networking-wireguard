@@ -18,21 +18,21 @@ from networking_wireguard import constants as wg_const
 
 LOG = log.getLogger(__name__)
 AGENT_PORT_CREATE = topics.get_topic_name(
-    topics.AGENT, topics.PORT, topics.CREATE)
+    topics.AGENT, topics.PORT, topics.CREATE
+)
 
 
 def _patched_device_to_port_id(orig_fn, context, device: "str"):
     prefix = wg_const.WG_DEVICE_PREFIX
     if device.startswith(prefix):
-        return device[len(prefix):]
+        return device[len(prefix) :]
     return orig_fn(context, device)
 
 
 # Monkey-patch _device_to_port_id so it can resolve a wg- device name to a
 # port UUID prefix.
 plugin.Ml2Plugin._device_to_port_id = partial(
-    _patched_device_to_port_id,
-    plugin.Ml2Plugin._device_to_port_id
+    _patched_device_to_port_id, plugin.Ml2Plugin._device_to_port_id
 )
 
 
@@ -52,9 +52,7 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
     def _setup_rpc(self):
         self.conn = n_rpc.Connection()
         self.conn.create_consumer(
-            wg_const.RPC_TOPIC,
-            [self.rpc_callbacks],
-            fanout=False
+            wg_const.RPC_TOPIC, [self.rpc_callbacks], fanout=False
         )
         return self.conn.consume_in_threads()
 
@@ -108,7 +106,10 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
 
         port = context.current
 
-        if self._has_owner(port, wg_const.DEVICE_OWNER_WG_HUB) and not context.host:
+        if (
+            self._has_owner(port, wg_const.DEVICE_OWNER_WG_HUB)
+            and not context.host
+        ):
             raise ValueError("A host must be specified for a hub port")
 
     def create_port_postcommit(self, context):
@@ -119,7 +120,8 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
 
         if not binding_host:
             hub_port = self.rpc_callbacks.get_hub_port(
-                context._plugin_context, port["network_id"])
+                context._plugin_context, port["network_id"]
+            )
             if not hub_port:
                 # Not much we can do; the spoke port will still be used to
                 # automatically configure the hub w/ peers when it is created.
@@ -130,24 +132,11 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
         # send a notification so the WG agent can pick up the event
         # and create the interface.
         cctxt = self.notifier.client.prepare(
-            topic=AGENT_PORT_CREATE, fanout=True)
+            topic=AGENT_PORT_CREATE, fanout=True
+        )
         cctxt.cast(
             context._plugin_context,
-            'port_create',
+            "port_create",
             port=port,
-            host=binding_host
+            host=binding_host,
         )
-
-    def delete_port_postcommit(self, context):
-        super().delete_port_postcommit(context)
-        port = context.current
-        device_owner = port.get("device_owner", "")
-        if device_owner == wg_const.DEVICE_OWNER_WG_SPOKE:
-            self.rpc_callbacks.remove_hub_peer(port)
-
-    def update_port_postcommit(self, context):
-        super().update_port_postcommit(context)
-        port = context.current
-        device_owner = port.get("device_owner", "")
-        if device_owner == wg_const.DEVICE_OWNER_WG_SPOKE:
-            self.rpc_callbacks.update_hub_peer(port, orig=context.original)
