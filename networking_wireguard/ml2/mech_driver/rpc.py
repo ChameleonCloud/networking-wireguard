@@ -32,8 +32,9 @@ class WireguardRpcCallback(object):
     # API version history:
     #     1.0 - Initial version.
     #     1.1 - Add get_subnet
+    #     1.2 - Remove hub peer management
 
-    target = oslo_messaging.Target(version="1.1")
+    target = oslo_messaging.Target(version="1.2")
 
     def get_hub_port(self, context, network_id=None):
         plugin = directory.get_plugin()
@@ -60,76 +61,11 @@ class WireguardRpcCallback(object):
                     portbindings.PROFILE: {
                         "endpoint": endpoint,
                         "public_key": public_key,
-                        # TODO: possible to fetch peers and ensure we don't override?
-                        "peers": [],
                     }
                 }
             },
         )
 
-    def add_hub_peer(self, context, peer_port=None):
-        peer_spec = _peer_spec(peer_port)
-        if not peer_spec:
-            return
-
-        with self._update_hub_binding(
-            context, peer_port
-        ) as hub_binding_profile:
-            hub_binding_profile["peers"].append(peer_spec)
-
-    def remove_hub_peer(self, context, peer_port=None):
-        peer_spec = _peer_spec(peer_port)
-        if not peer_spec:
-            return
-
-        with self._update_hub_binding(
-            context, peer_port
-        ) as hub_binding_profile:
-            hub_peers = hub_binding_profile.get("peers", [])
-            hub_binding_profile["peers"] = [
-                peer for peer in hub_peers if peer != peer_spec
-            ]
-
-    def update_hub_peer(self, context, peer_port=None, orig_peer_port=None):
-        new_peer_spec = _peer_spec(peer_port)
-        if not new_peer_spec:
-            return
-
-        orig_peer_spec = _peer_spec(orig_peer_port)
-        if not orig_peer_spec:
-            return
-
-        with self._update_hub_binding(
-            context, peer_port
-        ) as hub_binding_profile:
-            hub_peers = hub_binding_profile["peers"]
-            hub_binding_profile["peers"] = [
-                new_peer_spec if peer == orig_peer_spec else peer
-                for peer in hub_peers
-            ]
-
     def get_subnet(self, context, subnet_id=None):
         plugin = directory.get_plugin()
         return plugin.get_subnet(context, subnet_id)
-
-    @contextlib.contextmanager
-    def _update_hub_binding(self, context, peer_port):
-        hub_port = self.get_hub_port(context, peer_port["network_id"])
-        if not hub_port:
-            return
-
-        hub_binding_profile = hub_port[portbindings.PROFILE]
-        hub_binding_profile.setdefault("peers", [])
-
-        yield hub_binding_profile
-
-        plugin = directory.get_plugin()
-        plugin.update_port(
-            context,
-            hub_port["id"],
-            {
-                "port": {
-                    portbindings.PROFILE: hub_binding_profile,
-                },
-            },
-        )

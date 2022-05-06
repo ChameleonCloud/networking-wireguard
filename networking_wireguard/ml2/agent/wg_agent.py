@@ -521,14 +521,16 @@ class WireguardAgentCallbacks(object):
             return
         device_owner = port.get("device_owner", "")
         if device_owner == wg_const.DEVICE_OWNER_WG_HUB:
-            device, listen_port, public_key = wg.create_device_from_port(port)
-            endpoint = f"{CONF.wireguard.endpoint}:{listen_port}"
-            self.driver_rpc.update_hub_port(
-                port["id"], endpoint=endpoint, public_key=public_key
-            )
+            # NOTE(jason): The interface create logic might make more sense to put
+            # inside the agent loop.
+            device = wg.create_device_from_port(port)
             self.updated_hub_devices.add(device)
         elif device_owner == wg_const.DEVICE_OWNER_WG_SPOKE:
-            self.driver_rpc.add_hub_peer(port)
+            # Mark the hub(s) for this spoke port for an update on the next loop
+            hub_ports = port.get(portbindings.PROFILE, {}).get("peers") or []
+            self.updated_hub_devices.update(
+                [wg.get_device_name(port_id) for port_id in hub_ports]
+            )
 
     def port_delete(self, context, **kwargs):
         port_id = kwargs["port_id"]
