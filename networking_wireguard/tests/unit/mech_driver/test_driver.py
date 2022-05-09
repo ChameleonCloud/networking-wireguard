@@ -4,7 +4,7 @@ import networking_wireguard.constants as wg_const
 from networking_wireguard.tests.unit.base import TestWGMechanismDriverBase
 
 
-class TestWGMechanismDriver(TestWGMechanismDriverBase):
+class TestWireguardMechanismDriver(TestWGMechanismDriverBase):
     HUB_PORT = {
         wg_const.DEVICE_OWNER_KEY: wg_const.DEVICE_OWNER_WG_HUB,
         portbindings.VIF_DETAILS: {

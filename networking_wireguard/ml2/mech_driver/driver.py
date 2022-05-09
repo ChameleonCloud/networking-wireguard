@@ -116,17 +116,34 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
         super().create_port_postcommit(context)
 
         port = context.current
-        binding_host = context.host
 
-        if not binding_host:
+        if not self._has_owner(port, wg_const.DEVICE_OWNER_CHANNEL_PREFIX):
+            return
+
+        agent_host = None
+
+        if self._has_owner(port, wg_const.DEVICE_OWNER_WG_HUB):
+            agent_host = context.host
+        elif self._has_owner(port, wg_const.DEVICE_OWNER_WG_SPOKE):
             hub_port = self.rpc_callbacks.get_hub_port(
                 context._plugin_context, port["network_id"]
             )
             if not hub_port:
-                # Not much we can do; the spoke port will still be used to
-                # automatically configure the hub w/ peers when it is created.
+                LOG.debug(
+                    (
+                        "Could not find hub port for spoke in network %s. If a hub port "
+                        "is created in the future, it will be configured with this spoke "
+                        "port as a peer."
+                    ),
+                    port["network_id"],
+                )
                 return
-            binding_host = hub_port[portbindings.HOST_ID]
+            agent_host = hub_port[portbindings.HOST_ID]
+        else:
+            LOG.warning("Unexpected device owner %s", port["device_owner"])
+            return
+
+        assert agent_host is not None
 
         # Neutron will not notify agents on port create. We manually
         # send a notification so the WG agent can pick up the event
@@ -138,5 +155,5 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
             context._plugin_context,
             "port_create",
             port=port,
-            host=binding_host,
+            host=agent_host,
         )

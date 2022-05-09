@@ -1,7 +1,9 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
 
+from collections import namedtuple
 import os
 import tempfile
+import typing
 
 from neutron.agent.linux import ip_lib
 from neutron.privileged.agent.linux import ip_lib as privileged
@@ -18,9 +20,14 @@ from networking_wireguard.constants import (
 )
 from networking_wireguard.ml2.agent import utils
 
+if typing.TYPE_CHECKING:
+    from networking_wireguard.ml2.agent.wg_agent import HubPeerConfig
+
 LOG = log.getLogger(__name__)
 # TODO: allow configuring this via cfg
 CONFIG_DIR = "/etc/neutron/plugins/wireguard/"
+
+WireguardPeer = namedtuple("WireguardPeer", ["public_key", "allowed_ips"])
 
 
 def get_all_devices():
@@ -40,24 +47,26 @@ def get_all_devices():
     return devices
 
 
-def create_device_from_port(port):
+def ensure_device(device: str, project_id: str = None):
     """Create wireguard interface and move to netns.
 
     This creates a wireguard interface in the root namespace
     then moves it to the target namespace. This ensures that
     the "outside" of the tunnel can access network resources.
     """
-    device = get_device_name(port["id"])
     ip_dev = ip_lib.IPWrapper().device(device)
     ip_dev.kind = IP_LINK_KIND
     try:
         ip_dev.link.create()
     except privileged.InterfaceAlreadyExists:
-        pass
+        return
 
     # Move iface from root namespace to project namespace
-    netns = ip_lib.IPWrapper().ensure_namespace(_get_netns_name(port))
-    ip_dev.link.set_netns(netns.namespace)
+    if project_id:
+        netns = ip_lib.IPWrapper().ensure_namespace(
+            _get_netns_name(project_id)
+        )
+        ip_dev.link.set_netns(netns.namespace)
 
     listen_port = utils.find_free_port()
     privkey = utils.gen_privkey()
@@ -92,23 +101,21 @@ def create_device_from_port(port):
             LOG.info(f"Wrote configuration for {device} to {file.name}")
 
     except IOError:
-        LOG.warn("Failed to bind port")
-        cleanup_device_for_port(port["id"])
+        LOG.warn(f"Cleaning up failed device {device}")
+        cleanup_device(device)
         raise
 
     return device
 
 
-def sync_device(device, peers=None):
+def sync_device(device, peers: "list[WireguardPeer]" = None):
     conf_file = _device_config_file(device)
     wc = wgconfig.WGConfig(conf_file)
     try:
         wc.read_file()
     except FileNotFoundError:
         return
-    new_peers = {
-        peer["public_key"]: ",".join(peer["allowed_ips"]) for peer in peers
-    }
+    new_peers = {peer.public_key: ",".join(peer.allowed_ips) for peer in peers}
     old_peers = {
         peer: peer_conf["AllowedIPs"] for peer, peer_conf in wc.peers.items()
     }
@@ -179,8 +186,8 @@ def get_device_name(port_id):
     return f"{WG_DEVICE_PREFIX}{port_id}"[0:DEVICE_NAME_MAX_LEN]
 
 
-def _get_netns_name(port):
-    return f"{WG_NAMESPACE_PREFIX}{port['project_id']}"
+def _get_netns_name(project_id):
+    return f"{WG_NAMESPACE_PREFIX}{project_id}"
 
 
 def _device_config_file(device):
@@ -203,12 +210,3 @@ def cleanup_device(device):
         pass
 
     return device
-
-
-def cleanup_device_for_port(port_id):
-    """Delete wg port from network namespace.
-
-    This runs in two steps, to catch the case where we create a port
-    but fail to move it.
-    """
-    return cleanup_device(get_device_name(port_id))

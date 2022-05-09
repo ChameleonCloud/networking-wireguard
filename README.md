@@ -140,14 +140,14 @@ interface. Creating the interface in the root namespace simplifies the layer-2
 configuration and importantly should obviate the need to deal with OVS or similar.
 Randomly generated a new private key and assign to the interface. Pick a free port in
 the 51820..52820 range for the listen port and assign to the interface. Update the port
-vif_details with the public key. Update the port vif_details with the endpoint of the
-tunnel, which should be the public address of the Neutron node combined with the chosen
-port. The device public key and IP address provided by the user are added as a peer,
-with the device IP being in the AllowedIPs list. Save the Wireguard configuration to the
-channel configuration repo. Note we do not bring up the interface here!
+binding profile with the public key. Update the port binding profile with the endpoint
+of the tunnel, which should be the public address of the Neutron node combined with the
+chosen port. The device public key and IP address provided by the user are added as a
+peer, with the device IP being in the AllowedIPs list. Save the Wireguard configuration
+to the channel configuration repo. Note we do not bring up the interface here!
 
 When creating a _spoke port_, read the public_key, endpoint, and IP of the hub port.
-Store them on the binding vif_details in a "peers" list.
+Store them on the binding profile in a "peers" list.
 
 #### On port update
 
