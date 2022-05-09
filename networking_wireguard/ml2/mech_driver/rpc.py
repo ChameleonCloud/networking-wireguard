@@ -35,19 +35,6 @@ class WireguardRpcCallback(object):
 
     target = oslo_messaging.Target(version="1.2")
 
-    def get_hub_port(self, context, network_id=None):
-        plugin = directory.get_plugin()
-        hub_ports = plugin.get_ports(
-            context,
-            filters={
-                "device_owner": [wg_const.DEVICE_OWNER_WG_HUB],
-                "network_id": [network_id],
-            },
-        )
-        if not hub_ports:
-            return None
-        return hub_ports[0]
-
     def update_hub_port(
         self, context, port_id=None, endpoint=None, public_key=None
     ):

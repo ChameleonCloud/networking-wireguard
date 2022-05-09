@@ -53,13 +53,17 @@ def ensure_device(device: str, project_id: str = None):
     This creates a wireguard interface in the root namespace
     then moves it to the target namespace. This ensures that
     the "outside" of the tunnel can access network resources.
+
+    Returns:
+        a tuple of a listen port and an assigned public key,
+        if the device was created.
     """
     ip_dev = ip_lib.IPWrapper().device(device)
     ip_dev.kind = IP_LINK_KIND
     try:
         ip_dev.link.create()
     except privileged.InterfaceAlreadyExists:
-        return
+        return None, None
 
     # Move iface from root namespace to project namespace
     if project_id:
@@ -70,6 +74,7 @@ def ensure_device(device: str, project_id: str = None):
 
     listen_port = utils.find_free_port()
     privkey = utils.gen_privkey()
+    pubkey = utils.gen_pubkey(privkey)
 
     try:
         with tempfile.NamedTemporaryFile("w") as privkey_file:
@@ -105,7 +110,7 @@ def ensure_device(device: str, project_id: str = None):
         cleanup_device(device)
         raise
 
-    return device
+    return listen_port, pubkey
 
 
 def sync_device(device, peers: "list[WireguardPeer]" = None):
