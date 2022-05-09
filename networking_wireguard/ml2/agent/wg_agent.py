@@ -258,7 +258,16 @@ class WireguardAgent(service.Service):
         device = wg.get_device_name(hub_config.port_id)
 
         # 1. Ensure the Wireguard interface exists and has a port/privkey assigned.
-        wg.ensure_device(device, project_id=hub_config.project_id)
+        listen_port, public_key = wg.ensure_device(
+            device, project_id=hub_config.project_id
+        )
+        if public_key:
+            # The interface was created; update the Hub's configured attributes
+            self.driver_rpc.update_hub_port(
+                hub_config.port_id,
+                public_key=public_key,
+                endpoint=f"{CONF.wireguard.endpoint}:{listen_port}",
+            )
 
         # 2. Sync the config to the new list of configured peers (spokes)
         wg_peers = []
@@ -423,10 +432,6 @@ class WireguardPluginApi(object):
         # everywhere. We just generate a new one here on each call so requests
         # can be independently tracked server side.
         return context.get_admin_context_without_session()
-
-    def get_hub_port(self, network_id):
-        cctxt = self.client.prepare(version="1.0")
-        return cctxt.call(self.context, "get_hub_port", network_id=network_id)
 
     def update_hub_port(self, port_id, endpoint, public_key):
         cctxt = self.client.prepare(version="1.0")
