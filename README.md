@@ -1,6 +1,6 @@
 # networking-wireguard
 
-Repo to integrate wireguard tunnels as a Neutron ML2 Driver
+A Neutron ML2 driver that represents WireGuard tunnels as a set of interconnected ports.
 
 ## Devstack Usage
 
@@ -39,44 +39,56 @@ WG_HUB_IP=$HOST_IP
 
 This plugin runs in two components, a mechanism driver on the neutron-server instance,
 and a separate wireguard-agent that runs on the networking node. It may be the case that
-neutron-server and the wireguard-agent run on the same system.
+neutron-server and the wireguard-agent run on the same host (if the networking host is
+the same as the control/server host.)
 
-The mechanism driver is responisble for validating data, updating the neutron database,
-and communicating with the agent via RPC. The agent actually executes the commands that
-change system networking state, e.g. creating namespaces, configuring interfaces, and so
-on.
+The mechanism driver is responisble for validating data, updating the Neutron database,
+and providing Neutron state to the agent via RPC. The agent periodically polls the
+mechanism driver for the current set of relevant ports configured in Neutron and
+realizes those ports as WireGuard interfaces, configuring peers and potentially moving
+the interface to a project-specific network namespace.
 
-This plugin introduces two new types of ports to Neutron (as referenced by their
-device_owner field):
+At the model layer, this plugin introduces two new types of ports to Neutron (as
+referenced by their `device_owner` field):
 
-- `channel:wireguard:spoke`: represents a Wireguard peer that is external to Neutron.
-- `channel:wireguard:hub`: represents a Wireguard peer that Neutron will manage.
-  Neutron will manage the lifecycle of a Wireguard interface for each port of this type.
+- `channel:wireguard:hub`: represents a WireGuard peer on the networking host side.
+  Neutron will manage the lifecycle of a WireGuard interface for each port of this type.
+  These ports can interconnect multiple "spoke" ports, which can be understood as
+  WireGuard peers that do not have full-mesh connectivity to eachother (they must
+  communicate via the central "hub", hence the terminology.)
+- `channel:wireguard:spoke`: represents a WireGuard peer that is external to Neutron.
+  This peer can be located anywhere on the internet, assuming the networking host has
+  a public IPv4 address.
 
-The _hub ports_ are used to support connecting multiple _spoke ports_ to eachother, or
-to a wider Neutron network. Spoke ports can have multiple hubs specified.
+Spoke ports can have multiple hubs specified if desired. They can however only be
+configured with a single public key.
 
 ## Expected Input
 
-This plugin will act on `port_create`, `port_update`, `port_delete`, and `bind_port`
-actions.
+This plugin will act on `port_create` and `bind_port` actions.
 
 The port object must have the following attributes set:
 
-- binding:device_owner: channel:wireguard:hub
-- binding:vif_type: wireguard
-- binding:vif_details:
-  - wg_pubkey: "public_key" of peer (optional, will be automatically assigned)
-  - wg_endpoint: "ip_address:port" of peer (optional, will be automatically assigned)
+### Hub ports
 
-or
+- `binding:device_owner`: channel:wireguard:hub
+- `binding:host`: the hostname of the agent (networking host) to place the WireGuard
+  interface on.
+- `binding:profile`: a JSON representation with the following structure:
+  - public_key: "public_key" of peer (optional, will be automatically assigned)
+  - endpoint: "ip_address:port" of peer (optional, will be automatically assigned)
+- `fixed_ips`: each hub port should be configured with an IPv4 address from a subnet
+  set aside for the WireGuard mesh.
 
-- binding:device_owner: channel:wireguard:spoke
-- binding:vif_type: wireguard
-- binding:vif_details:
-  - wg_pubkey: "public_key" of peer (mandatory)
-  - wg_endpoint: "ip_address:port" (optional)
-  - hubs: list of hub port IDs
+### Spoke ports
+
+- `binding:device_owner`: channel:wireguard:spoke
+- `binding:profile`: a JSON representation with the following structure:
+  - `public_key`: "public_key" of peer (mandatory)
+  - `endpoint`: "ip_address:port" (optional)
+  - `peers`: list of hub port Neutron IDs
+- `fixed_ips`: each spoke port should be configured with an IPv4 address from a subnet
+  that a hub has been provisioned on.
 
 ## Testing
 
@@ -92,62 +104,38 @@ make sure you kill the existing process before running the debugger.
 The script `./devstack/testcopy.sh` will run `openstack port create` with suitable
 arguments, print the port info, then run `openstack port delete` to clean up.
 
-## Development notes
-
-Current status is that all methods in the mechanism driver are called as expected. After
-running port_create, the port correctly transitions from `vif_type: unbound` to
-`vif_type: wireguard`. I believe that setting it beforehand will prevent openvswitch
-from acting on it, but I'm not sure.
-
-All of the implementation methods for creating interfaces, saving config files, and so
-on, are in `networking_wireguard/ml2/agent/wg.py` You can see examples of how they were
-used in the commented out portions of `networking_wireguard/ml2/mech_driver/driver.py`
-
-As a "quick and dirty" fix, these methods could be called directly from the mechanism
-driver, leaving the agent as essentially a "noop" to keep neutron happy. The risk is
-that even the "postcommit" methods shouldn't be called in a way that blocks, or the
-neutron-server can become unresponsive.
-
-There are notification topics present for `port-update`, `port-delete`,
-`binding-activate`, and `binding-deactivate`, but for some reason only the `port-delete`
-RPC reaches the agent.
-
-The next debugging step would be to capture the emitted RPC messages, to verify what is
-being sent / received, and whether it's an issue with agent topic registration, or the
-correct event not being sent in the first place.
-
 ## Design Goals
 
 The Wireguard plugin takes action both for ML2 and L3 operations in order to provision
 and configure the tunnels, and potentially connect them to Neutron networks.
 
+The ML2 plugin component is responsible for provisioning the WireGuard interfaces for
+any hub ports in the hub-and-spoke topology. The L3 component can be used to logically
+connect this hub port to another Neutron network via a router. This is equivalent to
+moving the WireGuard interface to the router's network namespace. WireGuard has an
+interesting property where [it always "remembers" the namespace it was created
+in](https://www.wireguard.com/netns/); the plugin will always prefer to create the
+interfaces in the root namespace, mostly so that it can bind on the public IP of the
+networking node in order to allow external peers to connect.
+
 ### ML2
 
 #### On port create
 
-Validate the channel properties. In the case of a "spoke" port, a public key must be
+Validate the channel properties. In the case of a _spoke port_, a public key must be
 provided. The private key for the tunnel should not be generated by Neutron, nor should
-Neutron ever know it. In the case of a "spoke" port, an "endpoint" can optionally be
+Neutron ever know it. In the case of a _spoke port_, an "endpoint" can optionally be
 defined; this should be a stable public host/port pair that resolves to the Wireguard
 tunnel on the device end. This is NOT required and any device end behind a NAT will not
-have a stable endpoint.
+have a stable endpoint. Lastly, spoke ports should have a "peers" list defined on the
+binding profile; this should be a list of Neutron port IDs for the hubs this spoke
+should be connected to.
 
-When creating a _hub port_, additionally create a new Wireguard interface (named after
-the port using the aforementioned convention) in the root network namespace on the
-Neutron node, and then move it to a tenant-specific network namespace (named like
-tun<project_id>). If no such namespace exists yet, create it before moving the Wireguard
-interface. Creating the interface in the root namespace simplifies the layer-2
-configuration and importantly should obviate the need to deal with OVS or similar.
-Randomly generated a new private key and assign to the interface. Pick a free port in
-the 51820..52820 range for the listen port and assign to the interface. Update the port
-binding profile with the public key. Update the port binding profile with the endpoint
-of the tunnel, which should be the public address of the Neutron node combined with the
-chosen port. The device public key and IP address provided by the user are added as a
-peer, with the device IP being in the AllowedIPs list. Save the Wireguard configuration
-to the channel configuration repo. Note we do not bring up the interface here!
-
-When creating a _spoke port_, read the public_key, endpoint, and IP of the hub port.
-Store them on the binding profile in a "peers" list.
+When creating a _hub port_, require that "binding:host" be set; it should correspond to
+the network host that will host the WireGuard interface. Hubs should also have some
+"fixed_ip" set, but otherwise nothing is required. After port create, the ML2 plugin
+will additionally bind the port, claiming it to the plugin and preventing further
+handling from, e.g., OVS.
 
 #### On port update
 
@@ -161,15 +149,42 @@ When deleting a _hub port_, delete the Wireguard interface associated with the p
 delete the configuration stored in the configuration repo. When deleting a _spoke port_,
 no changes are needed.
 
+#### The agent daemon loop
+
+The networking-wireguard agent performs the bulk of the work. Every interval, the agent
+wakes up and queries the state of the Neutron DB (via RPC on the ML2 mechanism driver.)
+After querying all hub ports on its host, and all spoke ports globally, it will stitch
+these together to understand the state of the mesh. It will then compare this to its
+last known state.
+
+For each hub hosted on the agent, the agent will ensure there is a WireGuard interface.
+If there is none, it will create one (named after the port like `wg-<port_id>`) in the
+root network namespace and then move it to a tenant-specific network namespace (named
+like `tun<project_id>`). If no such namespace exists yet, it will be created. Creating
+the interface in the root namespace simplifies the layer-2 configuration and importantly
+should obviate the need to deal with OVS or similar. Randomly generated a new private
+key and assign to the interface. Pick a free port in the 51820..52820 range for the
+listen port and assign to the interface. Update the port binding profile with the public
+key. Update the port binding profile with the endpoint of the tunnel, which should be
+the public address of the Neutron node combined with the chosen port. The device public
+key and IP address provided by the user are added as a peer, with the device IP being in
+the AllowedIPs list. Save the Wireguard configuration to the channel configuration repo.
+
+Finally, the agent will configure the interface with any fixed_ips defined for the hub
+and bring up the interface. Any spokes associated with the hub will be configured as
+WireGuard peers, with the spoke port's fixed_ip as its sole AllowedIPs (source IPs). If
+all of this completes successfully, the hub port will then be set to ACTIVE state by the
+agent.
+
 ### L3
 
 #### When adding a port to a router
 
-If the port is a hub port for a Wireguard tunnel, move the Wireguard interface to the
-router's network namespace instead of creating a new veth pair and assigning an IP
-address. Bring up the tunnel interface.
+If the port is a hub port for a WireGuard tunnel, the plugin will move the WireGuard
+interface to the router's network namespace instead of creating a new veth pair and
+assigning an IP address.
 
 #### When removing a port from a router
 
-If the port is a hub port, move the Wireguard interface back to the default namespace
-and bring down the tunnel interface.
+If the port is a hub port, the plugin will move the Wireguard interface back to the
+default namespace and bring down the tunnel interface.
