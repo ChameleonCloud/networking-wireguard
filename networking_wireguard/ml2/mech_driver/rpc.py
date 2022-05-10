@@ -82,7 +82,7 @@ class WireguardRpcCallback(object):
         spokes_for_hub_map = defaultdict(list)
         for spoke_port in all_spokes:
             hubs_for_spoke = set(
-                spoke_port[portbindings.VIF_DETAILS].get("peers", [])
+                spoke_port[portbindings.PROFILE].get("peers", [])
             ).intersection(hub_ids)
             for hub_id in hubs_for_spoke:
                 spokes_for_hub_map[hub_id].append(spoke_port)
