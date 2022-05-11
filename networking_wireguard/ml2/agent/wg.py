@@ -175,7 +175,7 @@ def sync_device(
         if dry_run:
             LOG.info(
                 f"DRY-RUN: write config and syncconf: {device} config="
-                + "DRY-RUN: ".join(wc.lines)
+                + "\nDRY-RUN: ".join(wc.lines)
             )
             return
 
