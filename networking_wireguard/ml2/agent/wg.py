@@ -83,15 +83,13 @@ def ensure_device(device: str, project_id: str = None, dry_run: bool = None):
         ip_dev.link.create()
 
     # Move iface from root namespace to project namespace
-    if project_id:
-        ns_name = _get_netns_name(project_id)
+    if netns != root_netns:
         if dry_run:
-            LOG.info(f"DRY-RUN: ensure_namespace: {ip_dev.link}")
+            LOG.info(
+                f"DRY-RUN: set_netns: {ip_dev.link} (new ns={netns.namespace})"
+            )
         else:
-            netns = ip_lib.IPWrapper().ensure_namespace(ns_name)
             ip_dev.link.set_netns(netns.namespace)
-    else:
-        netns = ip_lib.IPWrapper()
 
     listen_port = utils.find_free_port()
     privkey = utils.gen_privkey()
