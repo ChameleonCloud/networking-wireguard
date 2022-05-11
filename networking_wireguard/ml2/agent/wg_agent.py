@@ -226,15 +226,23 @@ class WireguardAgent(service.Service):
         return self._subnet_cache[subnet_id]
 
     def _unsync_hub(self, hub_config: "HubConfig"):
-        wg.cleanup_device(wg.get_device_name(hub_config.port_id))
-        self.plugin_rpc.update_device_down(
-            self.context,
-            hub_config.port_id,
-            self.rpc_agent_id,
-            cfg.CONF.host,
+        dry_run = CONF.wireguard.dry_run
+
+        wg.cleanup_device(
+            wg.get_device_name(hub_config.port_id),
+            dry_run=dry_run,
         )
+        if not dry_run:
+            self.plugin_rpc.update_device_down(
+                self.context,
+                hub_config.port_id,
+                self.rpc_agent_id,
+                cfg.CONF.host,
+            )
 
     def _sync_hub(self, hub_config: "HubConfig"):
+        dry_run = CONF.wireguard.dry_run
+
         flush_addresses = True
         addresses = []
         for fixed_ip in hub_config.fixed_ips:
@@ -259,15 +267,24 @@ class WireguardAgent(service.Service):
 
         # 1. Ensure the Wireguard interface exists and has a port/privkey assigned.
         listen_port, public_key = wg.ensure_device(
-            device, project_id=hub_config.project_id
+            device, project_id=hub_config.project_id, dry_run=dry_run
         )
         if public_key:
-            # The interface was created; update the Hub's configured attributes
-            self.driver_rpc.update_hub_port(
-                hub_config.port_id,
-                public_key=public_key,
-                endpoint=f"{CONF.wireguard.endpoint}:{listen_port}",
-            )
+            endpoint = f"{CONF.wireguard.endpoint}:{listen_port}"
+            if dry_run:
+                LOG.info(
+                    (
+                        f"DRY-RUN: update_hub_port {hub_config.port_id}, "
+                        "public_key={public_key}, endpoint={endpoint}"
+                    )
+                )
+            else:
+                # The interface was created; update the Hub's configured attributes
+                self.driver_rpc.update_hub_port(
+                    hub_config.port_id,
+                    public_key=public_key,
+                    endpoint=endpoint,
+                )
 
         # 2. Sync the config to the new list of configured peers (spokes)
         wg_peers = []
@@ -285,30 +302,37 @@ class WireguardAgent(service.Service):
                     allowed_ips=allowed_ips,
                 )
             )
-        wg.sync_device(device, peers=hub_config.peers)
+        wg.sync_device(device, peers=hub_config.peers, dry_run=dry_run)
 
         # 3. Handle any IP changes to the interface itself and ensure it's up.
         interface_plugged = wg.plug_device(
             device,
             addresses=addresses,
             flush_addresses=flush_addresses,
+            dry_run=dry_run,
         )
 
         if hub_config.admin_state_up:
             if interface_plugged:
-                self.plugin_rpc.update_device_up(
-                    self.context,
-                    device,
-                    self.rpc_agent_id,
-                    cfg.CONF.host,
-                )
+                if dry_run:
+                    LOG.info(f"DRY-RUN: update_device_up: {device}")
+                else:
+                    self.plugin_rpc.update_device_up(
+                        self.context,
+                        device,
+                        self.rpc_agent_id,
+                        cfg.CONF.host,
+                    )
             else:
-                self.plugin_rpc.update_device_down(
-                    self.context,
-                    device,
-                    self.rpc_agent_id,
-                    cfg.CONF.host,
-                )
+                if dry_run:
+                    LOG.info(f"DRY-RUN: update_device_down: {device}")
+                else:
+                    self.plugin_rpc.update_device_down(
+                        self.context,
+                        device,
+                        self.rpc_agent_id,
+                        cfg.CONF.host,
+                    )
 
     def _cleanup_dangling_devices(self, hub_state: "HubConfigState"):
         dangling_devices = wg.get_all_devices()
@@ -331,7 +355,10 @@ class WireguardAgent(service.Service):
                 device,
             )
             try:
-                wg.cleanup_device(device)
+                if CONF.wireguard.dry_run:
+                    LOG.info(f"DRY-RUN: cleanup_device: {device}")
+                else:
+                    wg.cleanup_device(device)
                 LOG.info("Removed %s", device)
             except Exception as exc:
                 LOG.warning(
@@ -481,6 +508,15 @@ def main():
             help=(
                 "Public endpoint for peers. This is the IP address that peers can "
                 "use to connect to the Wireguard interface managed by the agent."
+            ),
+        ),
+        cfg.BoolOpt(
+            "dry_run",
+            default=False,
+            help=(
+                "If set, do not perform any updates to WireGuard interfaces, just log "
+                "what actions would have been taken. This is intended for safer "
+                "debugging of changes."
             ),
         ),
     ]

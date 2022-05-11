@@ -47,7 +47,7 @@ def get_all_devices():
     return devices
 
 
-def ensure_device(device: str, project_id: str = None):
+def ensure_device(device: str, project_id: str = None, dry_run: bool = None):
     """Create wireguard interface and move to netns.
 
     This creates a wireguard interface in the root namespace
@@ -58,23 +58,50 @@ def ensure_device(device: str, project_id: str = None):
         a tuple of a listen port and an assigned public key,
         if the device was created.
     """
-    ip_dev = ip_lib.IPWrapper().device(device)
-    ip_dev.kind = IP_LINK_KIND
-    try:
-        ip_dev.link.create()
-    except privileged.InterfaceAlreadyExists:
+    root_netns = ip_lib.IPWrapper()
+
+    if project_id:
+        ns_name = _get_netns_name(project_id)
+        if dry_run:
+            netns = ip_lib.IPWrapper(namespace=ns_name)
+            LOG.info(f"DRY-RUN: ensure_namespace: {ns_name}")
+        else:
+            netns = ip_lib.IPWrapper().ensure_namespace(ns_name)
+    else:
+        netns = root_netns
+
+    ip_dev = netns.device(device)
+
+    if ip_dev.link.exists:
         return None, None
+
+    if dry_run:
+        LOG.info(f"DRY-RUN: create: {ip_dev.link}")
+    else:
+        ip_dev = root_netns.device(device)
+        ip_dev.kind = IP_LINK_KIND
+        ip_dev.link.create()
 
     # Move iface from root namespace to project namespace
     if project_id:
-        netns = ip_lib.IPWrapper().ensure_namespace(
-            _get_netns_name(project_id)
-        )
-        ip_dev.link.set_netns(netns.namespace)
+        ns_name = _get_netns_name(project_id)
+        if dry_run:
+            LOG.info(f"DRY-RUN: ensure_namespace: {ip_dev.link}")
+        else:
+            netns = ip_lib.IPWrapper().ensure_namespace(ns_name)
+            ip_dev.link.set_netns(netns.namespace)
+    else:
+        netns = ip_lib.IPWrapper()
 
     listen_port = utils.find_free_port()
     privkey = utils.gen_privkey()
     pubkey = utils.gen_pubkey(privkey)
+
+    if dry_run:
+        LOG.info(
+            f"DRY-RUN: configure interface with port={listen_port}, pubkey={pubkey}"
+        )
+        return listen_port, pubkey
 
     try:
         with tempfile.NamedTemporaryFile("w") as privkey_file:
@@ -113,7 +140,9 @@ def ensure_device(device: str, project_id: str = None):
     return listen_port, pubkey
 
 
-def sync_device(device, peers: "list[WireguardPeer]" = None):
+def sync_device(
+    device, peers: "list[WireguardPeer]" = None, dry_run: bool = None
+):
     conf_file = _device_config_file(device)
     wc = wgconfig.WGConfig(conf_file)
     try:
@@ -145,6 +174,13 @@ def sync_device(device, peers: "list[WireguardPeer]" = None):
             changes = True
 
     if changes:
+        if dry_run:
+            LOG.info(
+                f"DRY-RUN: write config and syncconf: {device} config="
+                + "DRY-RUN: ".join(wc.lines)
+            )
+            return
+
         wc.write_file()
         netns = _get_device_netns(device)
         if netns:
@@ -169,18 +205,32 @@ def _get_device_netns(device):
     return None
 
 
-def plug_device(device, addresses=[], flush_addresses=False):
+def plug_device(
+    device: str,
+    addresses: "list[str]" = [],
+    flush_addresses: bool = False,
+    dry_run: bool = None,
+):
     ns = _get_device_netns(device)
     if not ns:
         return False
     try:
         ns_dev = ns.device(device)
         if ns_dev.link.state != "up":
-            ns_dev.link.set_up()
+            if dry_run:
+                LOG.info(f"DRY-RUN: link_set_up: {ns_dev.link}")
+            else:
+                ns_dev.link.set_up()
         if flush_addresses:
-            ns_dev.addr.flush(4)
-        for addr in addresses:
-            ns_dev.addr.add(addr)
+            if dry_run:
+                LOG.info(f"DRY-RUN: addr_flush: {ns_dev}")
+            else:
+                ns_dev.addr.flush(4)
+        if dry_run:
+            LOG.info(f"DRY-RUN: addr_add: {', '.join(addresses)}")
+        else:
+            for addr in addresses:
+                ns_dev.addr.add(addr)
         return True
     except pyroute_exc.NetlinkError as exc:
         LOG.error(f"Failed to plug device {device}: {exc}")
@@ -199,18 +249,24 @@ def _device_config_file(device):
     return os.path.join(CONFIG_DIR, f"{device}.conf")
 
 
-def cleanup_device(device):
+def cleanup_device(device, dry_run=False):
     root_dev = ip_lib.IPWrapper().device(device)
     if root_dev.exists():
-        root_dev.link.delete()
+        if dry_run:
+            LOG.info(f"DRY-RUN: delete: {root_dev.link}")
+        else:
+            root_dev.link.delete()
 
     for netns in ip_lib.list_network_namespaces():
         ns_dev = ip_lib.IPWrapper(netns).device(device)
         if ns_dev.exists():
+            if dry_run:
+                LOG.info(f"DRY-RUN: delete: {ns_dev.link}")
             ns_dev.link.delete()
 
     try:
-        os.remove(_device_config_file(device))
+        if not dry_run:
+            os.remove(_device_config_file(device))
     except FileNotFoundError:
         pass
 
