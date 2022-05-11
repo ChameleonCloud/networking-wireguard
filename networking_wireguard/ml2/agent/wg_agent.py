@@ -306,7 +306,7 @@ class WireguardAgent(service.Service):
                     allowed_ips=allowed_ips,
                 )
             )
-        wg.sync_device(device, peers=hub_config.peers, dry_run=dry_run)
+        wg.sync_device(device, peers=wg_peers, dry_run=dry_run)
 
         # 3. Handle any IP changes to the interface itself and ensure it's up.
         interface_plugged = wg.plug_device(
