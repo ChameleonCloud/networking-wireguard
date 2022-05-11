@@ -10,7 +10,7 @@ IP_LINK_KIND = "wireguard"
 DEVICE_OWNER_CHANNEL_PREFIX = "channel:"
 DEVICE_OWNER_WG_HUB = DEVICE_OWNER_CHANNEL_PREFIX + "wireguard:hub"
 DEVICE_OWNER_WG_SPOKE = DEVICE_OWNER_CHANNEL_PREFIX + "wireguard:spoke"
-DEVICE_OWNER_KEY = "device_owner"
+DEVICE_OWNER = "device_owner"
 
 WG_INTF_OWNERS = (
     DEVICE_OWNER_WG_HUB,
@@ -22,8 +22,8 @@ AGENT_PROCESS_WG = "neutron-wireguard-agent"
 VIF_TYPE_WG = "wireguard"
 
 # used in "binding:profile"
-WG_PUBKEY_KEY = "wg_pubkey"
-WG_ENDPOINT_KEY = "wg_endpoint"
-VIF_DETAILS_WG_PEERS = "wg_peers"
+BINDING_PUBLIC_KEY = "public_key"
+BINDING_ENDPOINT = "endpoint"
+BINDING_ROOT_DEVICE = "root_device"
 
 RPC_TOPIC = "q-wireguard"

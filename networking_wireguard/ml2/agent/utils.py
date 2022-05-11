@@ -1,6 +1,5 @@
 """Collection of useful methods."""
 
-import os
 import socket
 import subprocess
 from collections.abc import Mapping

@@ -7,23 +7,6 @@ import oslo_messaging
 from networking_wireguard import constants as wg_const
 
 
-def _peer_spec(port):
-    binding_profile = port.get(portbindings.PROFILE)
-    if not binding_profile:
-        return
-
-    public_key = binding_profile.get("public_key")
-    endpoint = binding_profile.get("endpoint")
-    if not public_key:
-        return
-
-    fixed_ips = [fip["ip_address"] for fip in port.get("fixed_ips")]
-    # peer spec is like {pubkey}|{endpoint}|{allowed_ips}
-    # where allowed_ips are comma-separated.
-    peer_spec = "|".join([public_key, endpoint or "", ",".join(fixed_ips)])
-    return peer_spec
-
-
 class WireguardRpcCallback(object):
     """Server side of the WireGuard rpc API."""
 
@@ -45,8 +28,9 @@ class WireguardRpcCallback(object):
             {
                 "port": {
                     portbindings.PROFILE: {
-                        "endpoint": endpoint,
-                        "public_key": public_key,
+                        wg_const.BINDING_ENDPOINT: endpoint,
+                        wg_const.BINDING_PUBLIC_KEY: public_key,
+                        wg_const.BINDING_ROOT_DEVICE: False,
                     }
                 }
             },
@@ -67,8 +51,8 @@ class WireguardRpcCallback(object):
         agent_hubs = plugin.get_ports(
             context,
             filters={
-                "device_owner": [wg_const.DEVICE_OWNER_WG_HUB],
-                portbindings.HOST_ID: agent,
+                wg_const.DEVICE_OWNER: [wg_const.DEVICE_OWNER_WG_HUB],
+                portbindings.HOST_ID: [agent],
             },
         )
 
@@ -76,7 +60,8 @@ class WireguardRpcCallback(object):
         hub_ids = set(hub_map.keys())
 
         all_spokes = plugin.get_ports(
-            context, filters={"device_owner": [wg_const.DEVICE_OWNER_WG_SPOKE]}
+            context,
+            filters={wg_const.DEVICE_OWNER: [wg_const.DEVICE_OWNER_WG_SPOKE]},
         )
 
         spokes_for_hub_map = defaultdict(list)

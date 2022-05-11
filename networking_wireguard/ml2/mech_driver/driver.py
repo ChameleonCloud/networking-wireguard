@@ -57,7 +57,7 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
         return self.conn.consume_in_threads()
 
     def _has_owner(self, port, owner):
-        device_owner = port.get("device_owner", "")
+        device_owner = port.get(wg_const.DEVICE_OWNER, "")
         return device_owner.startswith(owner)
 
     def try_to_bind_segment_for_agent(
@@ -86,6 +86,8 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
 
         if not self._has_owner(port, wg_const.DEVICE_OWNER_CHANNEL_PREFIX):
             return False
+
+        # TODO(jason): Check custom Neutron policy for setting root_device=True
 
         device_name = get_interface_name(
             port.get("id"), prefix=wg_const.WG_DEVICE_PREFIX

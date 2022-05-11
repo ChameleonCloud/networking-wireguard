@@ -1,5 +1,4 @@
 import collections
-import contextlib
 import sys
 import time
 
@@ -20,7 +19,6 @@ from oslo_log import log as logging
 import oslo_messaging
 from oslo_service import loopingcall
 from oslo_service import service
-from oslo_utils import excutils
 from osprofiler import profiler
 
 from networking_wireguard import constants as wg_const
@@ -36,6 +34,7 @@ HubConfig = collections.namedtuple(
         "port_id",
         "public_key",
         "endpoint",
+        "root_device",
         "fixed_ips",
         "peers",
         "project_id",
@@ -82,8 +81,9 @@ class HubConfigState(object):
             )
         self._lookup[hub_port["id"]] = HubConfig(
             port_id=hub_port["id"],
-            public_key=hub_profile.get("public_key"),
-            endpoint=hub_profile.get("endpoint"),
+            public_key=hub_profile.get(wg_const.BINDING_PUBLIC_KEY),
+            endpoint=hub_profile.get(wg_const.BINDING_ENDPOINT),
+            root_device=hub_profile.get(wg_const.BINDING_ROOT_DEVICE),
             fixed_ips=frozenset(
                 [
                     FixedIpConfig(
@@ -245,8 +245,9 @@ class WireguardAgent(service.Service):
 
         flush_addresses = True
         addresses = []
-        for fixed_ip in hub_config.fixed_ips:
-            subnet = self._get_subnet_details(fixed_ip["subnet_id"])
+        fixed_ips: "list[FixedIpConfig]" = hub_config.fixed_ips
+        for fixed_ip in fixed_ips:
+            subnet = self._get_subnet_details(fixed_ip.subnet_id)
             if not subnet:
                 LOG.error(
                     (
@@ -254,20 +255,23 @@ class WireguardAgent(service.Service):
                         "%s could not be found in cache"
                     ),
                     hub_config.port_id,
-                    fixed_ip["subnet_id"],
+                    fixed_ip.subnet_id,
                 )
                 # it is not safe to flush addresses in this case b/c we failed
                 # to properly rebuild the list of what they should be.
                 flush_addresses = False
                 continue
             _, range = subnet["cidr"].split("/")
-            addresses.append(f"{fixed_ip['ip_address']}/{range}")
+            addresses.append(f"{fixed_ip.ip_address}/{range}")
 
         device = wg.get_device_name(hub_config.port_id)
 
         # 1. Ensure the Wireguard interface exists and has a port/privkey assigned.
         listen_port, public_key = wg.ensure_device(
-            device, project_id=hub_config.project_id, dry_run=dry_run
+            device,
+            # Only scope the device to a project if it was not requested as a root dev
+            project_id=(not hub_config.root_device and hub_config.project_id),
+            dry_run=dry_run,
         )
         if public_key:
             endpoint = f"{CONF.wireguard.endpoint}:{listen_port}"
