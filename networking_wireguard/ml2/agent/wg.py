@@ -106,6 +106,7 @@ def sync_device(device, peers=None):
     try:
         wc.read_file()
     except FileNotFoundError:
+        LOG.warn(f"Config file not found for wg device {device}")
         return
     new_peers = {
         peer["public_key"]: ",".join(peer["allowed_ips"]) for peer in peers
@@ -161,6 +162,7 @@ def _get_device_netns(device):
 def plug_device(device, addresses=[], flush_addresses=False):
     ns = _get_device_netns(device)
     if not ns:
+        LOG.warn(f"Device not found: {device}")
         return False
     try:
         ns_dev = ns.device(device)
