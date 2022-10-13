@@ -159,8 +159,10 @@ class WireguardAgent(service.Service):
         # Updated devices are processed the same as new ones, as their
         # admin_state_up may have changed. The set union prevents duplicating
         # work when a device is new and updated in the same polling iteration.
-        devices_added_updated = set(device_info.get("added")) | set(
-            device_info.get("updated")
+        devices_added_updated = (
+            set(device_info.get("added"))
+            | set(device_info.get("updated"))
+            | set(device_info.get("missing"))
         )
         if devices_added_updated:
             resync_a = self.treat_devices_added_updated(devices_added_updated)
@@ -342,6 +344,7 @@ class WireguardAgent(service.Service):
                 "current": set(),
                 "updated": set(),
                 "removed": set(),
+                "missing": set(),
                 "timestamps": {},
             }
 
@@ -349,6 +352,19 @@ class WireguardAgent(service.Service):
             # This is the first iteration, or the previous one had a problem.
             # Re-add all existing devices.
             device_info["added"] = current_devices
+
+            # If any devices "should" exist, but are missing, add them here for
+            # comaprison. They may have been removed locally, the machine rebooted,
+            # or some other cause of loss of state.
+            known_ports = set()
+            for net_id, port_list in self.network_ports.items():
+                for port in port_list:
+                    known_ports.add(port.get("device"))
+
+            missing_devices = known_ports - current_devices
+            if missing_devices:
+                LOG.warn(f"Missing devices: {missing_devices}")
+            device_info["missing"] = missing_devices
 
             # Retry cleaning devices that may not have been cleaned properly.
             # And clean any that disappeared since the previous iteration.
@@ -374,6 +390,7 @@ class WireguardAgent(service.Service):
             device_info.get("added")
             or device_info.get("updated")
             or device_info.get("removed")
+            or device_info.get("missing")
         )
 
     def daemon_loop(self):
