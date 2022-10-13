@@ -479,7 +479,12 @@ class WireguardAgentCallbacks(object):
         return updated_devices
 
     def get_subnet_details(self, subnet_id):
-        return self.cached_subnets.get(subnet_id)
+        subnet_details = self.cached_subnets.get(subnet_id)
+        if not subnet_details:
+            # add to cache if we don't have it
+            subnet_details = self.driver_rpc.get_subnet(subnet_id)
+            self.cached_subnets[subnet_id] = subnet_details
+        return subnet_details
 
     def port_update(self, context, **kwargs):
         port = kwargs.get("port")
