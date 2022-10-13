@@ -40,6 +40,25 @@ def get_all_devices():
     return devices
 
 
+def _create_wg_link(device_name):
+
+    ip_dev = ip_lib.IPWrapper().device(device_name)
+    ip_dev.kind = IP_LINK_KIND
+    try:
+        ip_dev.link.create()
+    except privileged.InterfaceAlreadyExists:
+        pass
+    return ip_dev
+
+
+def _move_wg_netns(ip_link_device, netns_name):
+    # Move iface from root namespace to project namespace
+    ip_dev = ip_link_device
+    netns = ip_lib.IPWrapper().ensure_namespace(netns_name)
+    ip_dev.link.set_netns(netns.namespace)
+    return ip_dev, netns
+
+
 def create_device_from_port(port):
     """Create wireguard interface and move to netns.
 
@@ -47,17 +66,10 @@ def create_device_from_port(port):
     then moves it to the target namespace. This ensures that
     the "outside" of the tunnel can access network resources.
     """
-    device = get_device_name(port["id"])
-    ip_dev = ip_lib.IPWrapper().device(device)
-    ip_dev.kind = IP_LINK_KIND
-    try:
-        ip_dev.link.create()
-    except privileged.InterfaceAlreadyExists:
-        pass
-
-    # Move iface from root namespace to project namespace
-    netns = ip_lib.IPWrapper().ensure_namespace(_get_netns_name(port))
-    ip_dev.link.set_netns(netns.namespace)
+    device_name = get_device_name(port["id"])
+    netns_name = _get_netns_name(port)
+    ip_dev = _create_wg_link(device_name)
+    ip_dev, netns = _move_wg_netns(ip_dev, netns_name)
 
     listen_port = utils.find_free_port()
     privkey = utils.gen_privkey()
@@ -72,7 +84,7 @@ def create_device_from_port(port):
                 [
                     "wg",
                     "set",
-                    device,
+                    device_name,
                     "listen-port",
                     listen_port,
                     "private-key",
@@ -82,7 +94,7 @@ def create_device_from_port(port):
                 # privsep_exec=True,
             )
 
-        with open(_device_config_file(device), "w") as file:
+        with open(_device_config_file(device_name), "w") as file:
             file.write(
                 netns.netns.execute(
                     ["wg", "showconf", device],
@@ -90,7 +102,7 @@ def create_device_from_port(port):
                     # privsep_exec=True,
                 )
             )
-            LOG.info(f"Wrote configuration for {device} to {file.name}")
+            LOG.info(f"Wrote configuration for {device_name} to {file.name}")
 
     except IOError:
         LOG.warn("Failed to bind port")
