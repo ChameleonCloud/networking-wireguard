@@ -382,6 +382,7 @@ class WireguardAgent(service.Service):
             device_info["added"] = current_devices - previous["current"]
             device_info["removed"] = previous["current"] - current_devices
             device_info["updated"] = updated_devices & current_devices
+            device_info["missing"] = previous["missing"]
 
         return device_info
 
