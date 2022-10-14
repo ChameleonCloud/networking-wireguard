@@ -146,18 +146,29 @@ def sync_device(device, peers=None):
             wc.add_attr(peer, "AllowedIPs", new_peers[peer])
             changes = True
 
+    netns = _get_device_netns(device)
+    # TODO: this gets the current netns, but we also need the one it should be
+    # moved to. Currently we only use the root NS, so it's ok.
+    # create device if it doesn't exist
+    if not netns:
+        LOG.warn(f"Creating missing device {device}")
+        wg_dev = _create_wg_link(device_name=device)
+        netns = _get_device_netns(device)
+        # TODO: Implement _move_wg_netns(device_name=device, netns_name=netns)
+        changes = True
+
+    # TODO: This doesn't check the state of the active interface,
+    # we've only checked the neutron config vs config file
     if changes:
         wc.write_file()
-        netns = _get_device_netns(device)
-        if netns:
-            try:
-                netns.netns.execute(
-                    ["wg", "syncconf", device, conf_file],
-                    run_as_root=True,
-                    # privsep_exec=True,
-                )
-            except n_exc.ProcessExecutionError as exc:
-                LOG.error("Failed to sync device %s: %s", device, exc)
+        try:
+            netns.netns.execute(
+                ["wg", "syncconf", device, conf_file],
+                run_as_root=True,
+                # privsep_exec=True,
+            )
+        except n_exc.ProcessExecutionError as exc:
+            LOG.error("Failed to sync device %s: %s", device, exc)
 
 
 def _get_device_netns(device):
