@@ -21,7 +21,7 @@ AGENT_PORT_CREATE = topics.get_topic_name(
     topics.AGENT, topics.PORT, topics.CREATE)
 
 
-def _patched_device_to_port_id(orig_fn, context, device: "str"):
+def _patched_device_to_port_id(orig_fn, context, device: "str", pci_slot=None):
     prefix = wg_const.WG_DEVICE_PREFIX
     if device.startswith(prefix):
         return device[len(prefix):]
