@@ -22,7 +22,7 @@ AGENT_PORT_CREATE = topics.get_topic_name(
 )
 
 
-def _patched_device_to_port_id(orig_fn, context, device: "str"):
+def _patched_device_to_port_id(orig_fn, context, device: "str", pci_slot=None):
     prefix = wg_const.WG_DEVICE_PREFIX
     if device.startswith(prefix):
         return device[len(prefix) :]
@@ -41,7 +41,8 @@ class WireguardMechanismDriver(mech_agent.AgentMechanismDriverBase):
 
     def __init__(self):
         super(WireguardMechanismDriver, self).__init__(
-            agent_type=wg_const.AGENT_TYPE_WG
+            agent_type=wg_const.AGENT_TYPE_WG,
+            supported_vnic_types=portbindings.VNIC_NORMAL,
         )
         self.notifier = rpc.AgentNotifierApi(topics.AGENT)
         self.rpc_callbacks = WireguardRpcCallback()
