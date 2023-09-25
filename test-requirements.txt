@@ -17,3 +17,4 @@ PyMySQL>=0.7.6 # MIT License
 oslo.cache
 memcache
 etcd3gw
+gevent
