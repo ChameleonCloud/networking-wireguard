@@ -269,8 +269,8 @@ class WireguardAgent(service.Service):
         # 1. Ensure the Wireguard interface exists and has a port/privkey assigned.
         listen_port, public_key = wg.ensure_device(
             device,
-            # Only scope the device to a project if it was not requested as a root dev
-            project_id=(not hub_config.root_device and hub_config.project_id),
+            # Only scope the device to a project based on a configuration option
+            project_id= not CONF.wireguard.create_hub_in_root_netns,
             dry_run=dry_run,
         )
         if public_key:
@@ -523,6 +523,10 @@ def main():
                 "debugging of changes."
             ),
         ),
+        cfg.BoolOpt(
+            "create_hub_in_root_netns",
+            default=True,
+            help="Create wireguard hub in root network namespace"),
     ]
     cfg.CONF.register_opts(wireguard_opts, "wireguard")
 
