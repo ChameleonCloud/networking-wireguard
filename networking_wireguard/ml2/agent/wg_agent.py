@@ -302,8 +302,8 @@ class WireguardAgent(service.Service):
                 allowed_ips.append(f"{fixed_ip.ip_address}/32")
             wg_peers.append(
                 wg.WireguardPeer(
-                    public_key=hub_peer_config.public_key,
-                    allowed_ips=allowed_ips,
+                    PublicKey=hub_peer_config.public_key,
+                    AllowedIPs=allowed_ips,
                 )
             )
         wg.sync_device(device, peers=wg_peers, dry_run=dry_run)

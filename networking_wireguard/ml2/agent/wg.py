@@ -1,6 +1,7 @@
 """This file defines the Neutron ML2 mechanism driver for wireguard."""
 
-from collections import namedtuple
+from dataclasses import dataclass, field
+import dataclasses
 import os
 import tempfile
 import typing
@@ -12,6 +13,7 @@ from neutron_lib import exceptions as n_exc
 from oslo_log import log
 from pyroute2.netlink import exceptions as pyroute_exc
 import wgconfig
+from typing import List, Optional
 
 from networking_wireguard.constants import (
     IP_LINK_KIND,
@@ -27,7 +29,11 @@ LOG = log.getLogger(__name__)
 # TODO: allow configuring this via cfg
 CONFIG_DIR = "/etc/neutron/plugins/wireguard/"
 
-WireguardPeer = namedtuple("WireguardPeer", ["public_key", "allowed_ips"])
+@dataclass
+class WireguardPeer:
+    PublicKey: str
+    AllowedIPs: List[str] = field(default_factory=list)
+    Endpoint: Optional[str] = None
 
 
 def get_all_devices():
@@ -138,38 +144,66 @@ def ensure_device(device: str, project_id: str = None, dry_run: bool = None):
     return listen_port, pubkey
 
 
-def sync_device(
-    device, peers: "list[WireguardPeer]" = None, dry_run: bool = None
-):
+def sync_device( 
+    device, peers: "list[WireguardPeer]" = [], dry_run: bool = False
+) -> None:
     conf_file = _device_config_file(device)
     wc = wgconfig.WGConfig(conf_file)
     try:
         wc.read_file()
     except FileNotFoundError:
         return
-    new_peers = {peer.public_key: ",".join(peer.allowed_ips) for peer in peers}
-    old_peers = {
-        peer: peer_conf["AllowedIPs"] for peer, peer_conf in wc.peers.items()
-    }
+    
+    # for new and old peers, map peer public key to values
+    new_peers_map = {p.PublicKey: p for p in peers}
 
-    new_peer_keys = set(new_peers.keys())
-    old_peer_keys = set(old_peers.keys())
+    old_peers_map = {}
+    # returns list of dicts
+    for peer in wc.get_peers(keys_only=False):
+        if isinstance(peer, str):
+            old_peers_map[peer] = WireguardPeer(PublicKey=peer)
+        else:
+            public_key = peer.get("PublicKey")
+            old_peers_map[public_key] =  WireguardPeer(**peer)
+
+    new_peer_keys = set(new_peers_map.keys())
+    old_peer_keys = set(old_peers_map.keys())
     changes = False
 
-    for peer in new_peer_keys - old_peer_keys:
-        wc.add_peer(peer)
-        wc.add_attr(peer, "AllowedIPs", new_peers[peer])
+    added_peers = new_peer_keys - old_peer_keys
+    for pubkey in added_peers:
+        LOG.debug("handling added peer %s", pubkey)
+        wc.add_peer(pubkey)
         changes = True
 
-    for peer in old_peer_keys - new_peer_keys:
-        wc.del_peer(peer)
+    removed_peers = old_peer_keys - new_peer_keys
+    for pubkey in removed_peers:
+        LOG.debug("handling removed peer %s", pubkey)
+        wc.del_peer(pubkey)
         changes = True
 
-    for peer in new_peer_keys & old_peer_keys:
-        if new_peers[peer] != old_peers[peer]:
-            wc.del_attr(peer, "AllowedIPs")
-            wc.add_attr(peer, "AllowedIPs", new_peers[peer])
-            changes = True
+    current_peers = new_peer_keys & old_peer_keys
+    for pubkey in current_peers:
+        LOG.debug("handling current peer %s", pubkey)
+        new_peer_config = new_peers_map.get(pubkey)
+        old_peer_config = old_peers_map.get(pubkey)
+
+        field_list =  [field.name for field in dataclasses.fields(new_peer_config)]
+        for key in field_list:
+            oldvalue = getattr(old_peer_config, key)
+            newvalue = getattr(new_peer_config,key)
+            if oldvalue != newvalue:
+                LOG.debug("Updating peer %s param %s from %s to %s", pubkey, key, oldvalue, newvalue)
+                try:
+                    wc.del_attr(pubkey, key)
+                except ValueError as ex:
+                    LOG.debug("couldn't delete missing value %s", ex)
+                if isinstance(newvalue, list):
+                    for v in newvalue:
+                        wc.add_attr(pubkey, key, v)
+                else:
+                    wc.add_attr(pubkey, key, newvalue)
+                changes = True
 
     if changes:
         if dry_run:
