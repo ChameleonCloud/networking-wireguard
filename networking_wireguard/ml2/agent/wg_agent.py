@@ -304,6 +304,7 @@ class WireguardAgent(service.Service):
                 wg.WireguardPeer(
                     PublicKey=hub_peer_config.public_key,
                     AllowedIPs=allowed_ips,
+                    Endpoint=hub_peer_config.endpoint,
                 )
             )
         wg.sync_device(device, peers=wg_peers, dry_run=dry_run)
