@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from unittest import mock
 
+from neutron.common.config import register_common_config_options
 from neutron_lib.api.definitions import portbindings
 from oslo_config import cfg
 from oslo_service.tests.base import ServiceBaseTestCase
@@ -39,6 +40,7 @@ def fake_spoke_port(idx=1):
 
 class WireguardAgentTestCase(ServiceBaseTestCase):
     def setUp(self):
+        register_common_config_options()
         super().setUp()
         cfg.CONF.set_override("host", "fake-host")
 
