@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from unittest import mock
 
 from neutron_lib.api.definitions import portbindings
+from oslo_config import cfg
 from oslo_service.tests.base import ServiceBaseTestCase
 
 from networking_wireguard.ml2.agent.wg_agent import WireguardAgent
@@ -37,6 +38,10 @@ def fake_spoke_port(idx=1):
 
 
 class WireguardAgentTestCase(ServiceBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        cfg.CONF.set_override("host", "fake-host")
+
     @contextmanager
     def _with_ports_for_agent(self, ports_for_agent_ret):
         agent = WireguardAgent(0, 0, "fake-agent_type", "fake-binary")

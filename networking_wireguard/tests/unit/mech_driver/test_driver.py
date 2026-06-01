@@ -6,18 +6,18 @@ from networking_wireguard.tests.unit.base import TestWGMechanismDriverBase
 
 class TestWireguardMechanismDriver(TestWGMechanismDriverBase):
     HUB_PORT = {
-        wg_const.DEVICE_OWNER_KEY: wg_const.DEVICE_OWNER_WG_HUB,
+        wg_const.DEVICE_OWNER: wg_const.DEVICE_OWNER_WG_HUB,
         portbindings.VIF_DETAILS: {
-            wg_const.WG_PUBKEY_KEY: TestWGMechanismDriverBase.fake_wg_pubkey,
-            wg_const.WG_ENDPOINT_KEY: TestWGMechanismDriverBase.fake_endpoint,
+            wg_const.BINDING_PUBLIC_KEY: TestWGMechanismDriverBase.fake_wg_pubkey,
+            wg_const.BINDING_ENDPOINT: TestWGMechanismDriverBase.fake_endpoint,
         },
     }
 
     SPOKE_PORT = {
-        wg_const.DEVICE_OWNER_KEY: wg_const.DEVICE_OWNER_WG_SPOKE,
+        wg_const.DEVICE_OWNER: wg_const.DEVICE_OWNER_WG_SPOKE,
         portbindings.VIF_DETAILS: {
-            wg_const.WG_PUBKEY_KEY: TestWGMechanismDriverBase.fake_wg_pubkey,
-            wg_const.WG_ENDPOINT_KEY: TestWGMechanismDriverBase.fake_endpoint,
+            wg_const.BINDING_PUBLIC_KEY: TestWGMechanismDriverBase.fake_wg_pubkey,
+            wg_const.BINDING_ENDPOINT: TestWGMechanismDriverBase.fake_endpoint,
         },
     }
 

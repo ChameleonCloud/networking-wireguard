@@ -1,5 +1,5 @@
 neutron
-neutron_lib
+neutron-lib
 pyroute2
 oslo_log
 wgconfig
