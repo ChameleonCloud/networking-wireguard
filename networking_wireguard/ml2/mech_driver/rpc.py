@@ -1,11 +1,13 @@
 from collections import defaultdict
 
-from neutron_lib.plugins import directory
-from neutron_lib.api.definitions import portbindings
 import oslo_messaging
+from neutron_lib.api.definitions import portbindings
+from neutron_lib.plugins import directory
+from oslo_log import log
 
 from networking_wireguard import constants as wg_const
 
+LOG = log.getLogger(__name__)
 
 class WireguardRpcCallback(object):
     """Server side of the WireGuard rpc API."""
@@ -56,23 +58,47 @@ class WireguardRpcCallback(object):
             },
         )
 
+        # map of hub port IDs to port dicts for hubs on this host
         hub_map = {hub["id"]: hub for hub in agent_hubs}
+
+        # set of hub uuids for hubs on this host
         hub_ids = set(hub_map.keys())
 
         all_spokes = plugin.get_ports(
             context,
             filters={wg_const.DEVICE_OWNER: [wg_const.DEVICE_OWNER_WG_SPOKE]},
         )
+        all_hubs = plugin.get_ports(
+            context,
+            filters={wg_const.DEVICE_OWNER: [wg_const.DEVICE_OWNER_WG_HUB]},
+        )
+        
 
         spokes_for_hub_map = defaultdict(list)
-        for spoke_port in all_spokes:
-            hubs_for_spoke = set(
-                spoke_port[portbindings.PROFILE].get("peers", [])
-            ).intersection(hub_ids)
+        for spoke_port in all_spokes + all_hubs:
+
+            pubkey = spoke_port[portbindings.PROFILE].get("public_key")
+            if not pubkey:
+                LOG.warning("Port %s has no public key, skipping", spoke_port["id"])
+                continue
+
+            # list of peers for each spoke port
+            spoke_peer_list = spoke_port[portbindings.PROFILE].get("peers", [])
+
+            # spoke peers corresponding to hub ports on this host
+            hubs_for_spoke = set(spoke_peer_list).intersection(hub_ids)
+
+            # append spoke to the correct hub's peer list
             for hub_id in hubs_for_spoke:
                 spokes_for_hub_map[hub_id].append(spoke_port)
 
-        return [
-            {"hub": hub_map[hub_id], "spokes": spokes_for_hub_map[hub_id]}
+        hub_peers_list = [
+            {
+                "hub": hub_map[hub_id],
+                "spokes": spokes_for_hub_map[hub_id]
+            }
             for hub_id in hub_ids
         ]
+
+        LOG.debug("Generated list of hubs and peers for this host %s", hub_peers_list)
+        return hub_peers_list
