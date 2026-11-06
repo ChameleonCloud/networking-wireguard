@@ -4,7 +4,8 @@ from unittest import mock
 from neutron.common.config import register_common_config_options
 from neutron_lib.api.definitions import portbindings
 from oslo_config import cfg
-from oslo_service.tests.base import ServiceBaseTestCase
+from oslo_config import fixture as config_fixture
+from oslotest import base
 
 from networking_wireguard.ml2.agent.wg_agent import WireguardAgent
 from networking_wireguard import constants as wg_const
@@ -38,10 +39,11 @@ def fake_spoke_port(idx=1):
     }
 
 
-class WireguardAgentTestCase(ServiceBaseTestCase):
+class WireguardAgentTestCase(base.BaseTestCase):
     def setUp(self):
         register_common_config_options()
         super().setUp()
+        self.useFixture(config_fixture.Config(cfg.CONF))
         cfg.CONF.set_override("host", "fake-host")
 
     @contextmanager

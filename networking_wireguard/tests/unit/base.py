@@ -1,7 +1,3 @@
-import eventlet
-
-eventlet.monkey_patch()
-
 from neutron.tests.unit import fake_resources
 from neutron.tests.unit.plugins.ml2._test_mech_agent import FakePortContext
 from neutron.tests.unit.plugins.ml2.test_plugin import (
